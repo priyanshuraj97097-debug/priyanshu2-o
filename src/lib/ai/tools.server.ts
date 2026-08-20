@@ -6,7 +6,7 @@ import type { UserContext } from "@/lib/supabase-user.server";
 
 import { GATEWAY_BASE_URL, IMAGE_MODEL, gatewayHeaders, getSearchProvider } from "./config.server";
 
-const math = create(all, { number: "number" });
+const math = create(all!, { number: "number" });
 
 export type ToolEvent =
   | { kind: "image"; url: string; prompt: string }
