@@ -243,7 +243,7 @@ export const Route = createFileRoute("/api/chat")({
                 }
               }
 
-              const usage = await result.usage.catch(() => undefined);
+              const usage = await Promise.resolve(result.usage).catch(() => undefined);
               const hasImage = toolEvents.some((e) => e.kind === "image");
               if (!fullText.trim() && !hasImage) {
                 send({ type: "error", message: "The assistant returned an empty response. Try again." });
