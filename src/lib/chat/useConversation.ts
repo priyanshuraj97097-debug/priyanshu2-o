@@ -11,10 +11,11 @@ export function useConversation(conversationId: string | null): ConversationStat
   );
 }
 
-export function useBusyConversations(): string[] {
+/** Comma-joined ids of conversations currently generating (stable snapshot). */
+export function useBusyConversationKey(): string {
   return useSyncExternalStore(
     (listener) => chatStore.subscribeGlobal(listener),
-    () => chatStore.activeConversationIds().join(",") as unknown as string[],
-    () => [] as string[],
-  ) as unknown as string[];
+    () => chatStore.activeConversationIds().join(","),
+    () => "",
+  );
 }
