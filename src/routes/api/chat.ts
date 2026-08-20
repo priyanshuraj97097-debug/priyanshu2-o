@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { convertToModelMessages, stepCountIs, streamText, type ModelMessage, type UIMessage } from "ai";
+import { stepCountIs, streamText, type ModelMessage } from "ai";
 
 import { friendlyGatewayError, getSearchProvider, resolveChatModel, TITLE_MODEL, GATEWAY_BASE_URL, gatewayHeaders } from "@/lib/ai/config.server";
 import { createProvider } from "@/lib/ai/gateway.server";
@@ -310,6 +310,3 @@ export const Route = createFileRoute("/api/chat")({
     },
   },
 });
-
-export type { UIMessage };
-export { convertToModelMessages };
