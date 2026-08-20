@@ -14,7 +14,262 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      conversations: {
+        Row: {
+          archived: boolean
+          created_at: string
+          id: string
+          last_message_at: string
+          pinned: boolean
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          archived?: boolean
+          created_at?: string
+          id?: string
+          last_message_at?: string
+          pinned?: boolean
+          title?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          archived?: boolean
+          created_at?: string
+          id?: string
+          last_message_at?: string
+          pinned?: boolean
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      files: {
+        Row: {
+          conversation_id: string | null
+          created_at: string
+          file_name: string
+          id: string
+          kind: string
+          mime_type: string
+          size_bytes: number
+          storage_path: string
+          user_id: string
+        }
+        Insert: {
+          conversation_id?: string | null
+          created_at?: string
+          file_name: string
+          id?: string
+          kind?: string
+          mime_type: string
+          size_bytes?: number
+          storage_path: string
+          user_id: string
+        }
+        Update: {
+          conversation_id?: string | null
+          created_at?: string
+          file_name?: string
+          id?: string
+          kind?: string
+          mime_type?: string
+          size_bytes?: number
+          storage_path?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "files_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      memories: {
+        Row: {
+          content: string
+          created_at: string
+          id: string
+          source: string
+          user_id: string
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          id?: string
+          source?: string
+          user_id: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          id?: string
+          source?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      messages: {
+        Row: {
+          attachments: Json
+          content: string
+          conversation_id: string
+          created_at: string
+          id: string
+          model: string | null
+          parts: Json
+          role: string
+          token_usage: Json | null
+          tool_calls: Json
+          user_id: string
+        }
+        Insert: {
+          attachments?: Json
+          content?: string
+          conversation_id: string
+          created_at?: string
+          id?: string
+          model?: string | null
+          parts?: Json
+          role: string
+          token_usage?: Json | null
+          tool_calls?: Json
+          user_id: string
+        }
+        Update: {
+          attachments?: Json
+          content?: string
+          conversation_id?: string
+          created_at?: string
+          id?: string
+          model?: string | null
+          parts?: Json
+          role?: string
+          token_usage?: Json | null
+          tool_calls?: Json
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "messages_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profiles: {
+        Row: {
+          avatar_url: string | null
+          created_at: string
+          display_name: string | null
+          id: string
+          updated_at: string
+        }
+        Insert: {
+          avatar_url?: string | null
+          created_at?: string
+          display_name?: string | null
+          id: string
+          updated_at?: string
+        }
+        Update: {
+          avatar_url?: string | null
+          created_at?: string
+          display_name?: string | null
+          id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      usage_events: {
+        Row: {
+          created_at: string
+          id: string
+          input_tokens: number
+          kind: string
+          model: string | null
+          output_tokens: number
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          input_tokens?: number
+          kind: string
+          model?: string | null
+          output_tokens?: number
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          input_tokens?: number
+          kind?: string
+          model?: string | null
+          output_tokens?: number
+          user_id?: string
+        }
+        Relationships: []
+      }
+      user_preferences: {
+        Row: {
+          auto_speak: boolean
+          created_at: string
+          custom_instructions: string | null
+          language: string
+          memory_enabled: boolean
+          model_preference: string
+          notifications: boolean
+          send_on_enter: boolean
+          speech_rate: number
+          theme: string
+          updated_at: string
+          user_id: string
+          voice_name: string
+          web_search_enabled: boolean
+        }
+        Insert: {
+          auto_speak?: boolean
+          created_at?: string
+          custom_instructions?: string | null
+          language?: string
+          memory_enabled?: boolean
+          model_preference?: string
+          notifications?: boolean
+          send_on_enter?: boolean
+          speech_rate?: number
+          theme?: string
+          updated_at?: string
+          user_id: string
+          voice_name?: string
+          web_search_enabled?: boolean
+        }
+        Update: {
+          auto_speak?: boolean
+          created_at?: string
+          custom_instructions?: string | null
+          language?: string
+          memory_enabled?: boolean
+          model_preference?: string
+          notifications?: boolean
+          send_on_enter?: boolean
+          speech_rate?: number
+          theme?: string
+          updated_at?: string
+          user_id?: string
+          voice_name?: string
+          web_search_enabled?: boolean
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
