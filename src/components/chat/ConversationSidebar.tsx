@@ -216,7 +216,7 @@ export function ConversationSidebar({
                         <Pencil className="size-4" /> Rename
                       </DropdownMenuItem>
                       <DropdownMenuItem
-                        variant="destructive"
+                        className="text-destructive focus:text-destructive"
                         onSelect={() => void remove(conversation.id)}
                       >
                         <Trash2 className="size-4" /> Delete
