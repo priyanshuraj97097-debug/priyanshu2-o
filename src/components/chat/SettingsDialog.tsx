@@ -144,7 +144,7 @@ export function SettingsDialog({ open, onOpenChange }: { open: boolean; onOpenCh
     try {
       const blob = await synthesize(
         speechText("Hello, this is Priyanshu 2.o. How can I help you today?"),
-        preferences.voice_name,
+        normalizeVoice(preferences.voice_name, preferences.language),
         preferences.speech_rate,
       );
       await new Audio(URL.createObjectURL(blob)).play();
