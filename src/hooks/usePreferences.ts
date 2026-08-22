@@ -9,7 +9,7 @@ export type Preferences = Database["public"]["Tables"]["user_preferences"]["Row"
 export const DEFAULT_PREFERENCES: Omit<Preferences, "user_id" | "created_at" | "updated_at"> = {
   auto_speak: false,
   custom_instructions: null,
-  language: "auto",
+  language: "en",
   memory_enabled: true,
   model_preference: "balanced",
   notifications: true,

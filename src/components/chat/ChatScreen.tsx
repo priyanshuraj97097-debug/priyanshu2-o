@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { useAuth } from "@/hooks/useAuth";
 import { usePreferences } from "@/hooks/usePreferences";
+import { normalizeLanguage, normalizeVoice } from "@/lib/voice-options";
 import { chatStore } from "@/lib/chat/store";
 import type { Attachment, ChatMessage } from "@/lib/chat/types";
 import { useConversation } from "@/lib/chat/useConversation";
@@ -173,7 +174,7 @@ export function ChatScreen({ conversationId }: { conversationId: string | null }
                     key={message.id}
                     message={message}
                     busy={busy}
-                    voice={preferences.voice_name}
+                    voice={normalizeVoice(preferences.voice_name, preferences.language)}
                     speechRate={preferences.speech_rate}
                     onEdit={onEdit}
                     onRetry={() => conversationId && void chatStore.retryLast(conversationId)}
@@ -203,7 +204,7 @@ export function ChatScreen({ conversationId }: { conversationId: string | null }
               conversationId={conversationId}
               busy={busy}
               sendOnEnter={preferences.send_on_enter}
-              language={preferences.language}
+              language={normalizeLanguage(preferences.language)}
               onSend={(input) => void send(input)}
               onStop={() => conversationId && chatStore.stop(conversationId)}
               onLive={() => void startLive()}
@@ -219,9 +220,9 @@ export function ChatScreen({ conversationId }: { conversationId: string | null }
       {liveOpen && conversationId ? (
         <LiveVoiceOverlay
           conversationId={conversationId}
-          voice={preferences.voice_name}
+          voice={normalizeVoice(preferences.voice_name, preferences.language)}
           speechRate={preferences.speech_rate}
-          language={preferences.language}
+          language={normalizeLanguage(preferences.language)}
           onClose={() => setLiveOpen(false)}
         />
       ) : null}

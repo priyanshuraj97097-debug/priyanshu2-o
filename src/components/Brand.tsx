@@ -1,12 +1,17 @@
-import mark from "@/assets/priyanshu-mark.png";
+import mark from "@/assets/priyanshu-mark-logo.png.asset.json";
 import { cn } from "@/lib/utils";
+
+export const BRAND_MARK_URL = mark.url;
 
 export function BrandMark({ className }: { className?: string }) {
   return (
     <img
-      src={mark}
+      src={mark.url}
       alt="Priyanshu 2.o"
-      className={cn("size-8 select-none object-contain drop-shadow-[0_0_12px_oklch(0.7_0.17_260/0.5)]", className)}
+      className={cn(
+        "size-8 select-none rounded-full object-contain drop-shadow-[0_0_12px_oklch(0.7_0.17_260/0.5)]",
+        className,
+      )}
     />
   );
 }

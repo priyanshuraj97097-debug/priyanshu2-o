@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { BrandMark } from "@/components/Brand";
 import { Markdown } from "@/components/Markdown";
 import { AttachmentPreview } from "@/components/chat/AttachmentChip";
+import { GeneratedImage } from "@/components/chat/GeneratedImage";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import type { ChatMessage } from "@/lib/chat/types";
@@ -134,15 +135,7 @@ export function MessageItem({ message, busy, voice, speechRate, onEdit, onRetry 
 
         {message.events.map((event, index) =>
           event.kind === "image" ? (
-            <figure key={index} className="my-3">
-              <img
-                src={event.url}
-                alt={event.prompt}
-                loading="lazy"
-                className="max-h-[26rem] w-auto rounded-2xl border border-border glow-ring"
-              />
-              <figcaption className="mt-2 text-xs text-muted-foreground">{event.prompt}</figcaption>
-            </figure>
+            <GeneratedImage key={index} url={event.url} prompt={event.prompt} />
           ) : (
             <div key={index} className="my-3 rounded-xl border border-border bg-surface/60 p-3">
               <p className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">

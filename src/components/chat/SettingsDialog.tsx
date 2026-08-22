@@ -21,7 +21,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/hooks/useAuth";
 import { usePreferences } from "@/hooks/usePreferences";
 import { supabase } from "@/integrations/supabase/client";
-import { LANGUAGES, MODEL_PREFERENCES, VOICES } from "@/lib/voice-options";
+import { LANGUAGES, MODEL_PREFERENCES, VOICES, normalizeLanguage, normalizeVoice } from "@/lib/voice-options";
 import { speechText, synthesize } from "@/lib/voice";
 
 function MemorySection() {
@@ -144,7 +144,7 @@ export function SettingsDialog({ open, onOpenChange }: { open: boolean; onOpenCh
     try {
       const blob = await synthesize(
         speechText("Hello, this is Priyanshu 2.o. How can I help you today?"),
-        preferences.voice_name,
+        normalizeVoice(preferences.voice_name, preferences.language),
         preferences.speech_rate,
       );
       await new Audio(URL.createObjectURL(blob)).play();
@@ -266,7 +266,10 @@ export function SettingsDialog({ open, onOpenChange }: { open: boolean; onOpenCh
           <TabsContent value="voice" className="space-y-4 pt-4">
             <div className="space-y-2">
               <Label>Assistant voice</Label>
-              <Select value={preferences.voice_name} onValueChange={(value) => update({ voice_name: value })}>
+              <Select
+                value={normalizeVoice(preferences.voice_name, preferences.language)}
+                onValueChange={(value) => update({ voice_name: value })}
+              >
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
@@ -294,7 +297,12 @@ export function SettingsDialog({ open, onOpenChange }: { open: boolean; onOpenCh
             </div>
             <div className="space-y-2">
               <Label>Spoken language</Label>
-              <Select value={preferences.language} onValueChange={(value) => update({ language: value })}>
+              <Select
+                value={normalizeLanguage(preferences.language)}
+                onValueChange={(value) =>
+                  update({ language: value, voice_name: value === "hi" ? "coral" : "alloy" })
+                }
+              >
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
