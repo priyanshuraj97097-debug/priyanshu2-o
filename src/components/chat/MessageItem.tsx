@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { BrandMark } from "@/components/Brand";
 import { Markdown } from "@/components/Markdown";
 import { AttachmentPreview } from "@/components/chat/AttachmentChip";
+import { GeneratedImage } from "@/components/chat/GeneratedImage";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import type { ChatMessage } from "@/lib/chat/types";
