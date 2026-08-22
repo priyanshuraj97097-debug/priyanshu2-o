@@ -1,10 +1,20 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { Check, Loader2, MoreHorizontal, Pencil, Plus, Search, Settings, Trash2, X } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { BrandMark, BrandWordmark } from "@/components/Brand";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -80,6 +90,23 @@ export function ConversationSidebar({
   const [query, setQuery] = useState("");
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
+  const [pendingDelete, setPendingDelete] = useState<Conversation | null>(null);
+  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const longPressFired = useRef(false);
+
+  const cancelLongPress = () => {
+    if (longPressTimer.current) clearTimeout(longPressTimer.current);
+    longPressTimer.current = null;
+  };
+
+  const startLongPress = (conversation: Conversation) => {
+    cancelLongPress();
+    longPressFired.current = false;
+    longPressTimer.current = setTimeout(() => {
+      longPressFired.current = true;
+      setPendingDelete(conversation);
+    }, 550);
+  };
 
   const busyIds = useMemo(() => new Set(busyKey.split(",").filter(Boolean)), [busyKey]);
 
@@ -187,7 +214,23 @@ export function ConversationSidebar({
                   <Link
                     to="/c/$conversationId"
                     params={{ conversationId: conversation.id }}
-                    onClick={onNavigate}
+                    onPointerDown={() => startLongPress(conversation)}
+                    onPointerUp={cancelLongPress}
+                    onPointerLeave={cancelLongPress}
+                    onPointerCancel={cancelLongPress}
+                    onContextMenu={(event) => {
+                      event.preventDefault();
+                      setPendingDelete(conversation);
+                    }}
+                    onClick={(event) => {
+                      cancelLongPress();
+                      if (longPressFired.current) {
+                        event.preventDefault();
+                        longPressFired.current = false;
+                        return;
+                      }
+                      onNavigate?.();
+                    }}
                     className="min-w-0 flex-1 truncate px-3 py-2 text-sm"
                   >
                     {conversation.title}
@@ -217,7 +260,7 @@ export function ConversationSidebar({
                       </DropdownMenuItem>
                       <DropdownMenuItem
                         className="text-destructive focus:text-destructive"
-                        onSelect={() => void remove(conversation.id)}
+                        onSelect={() => setPendingDelete(conversation)}
                       >
                         <Trash2 className="size-4" /> Delete
                       </DropdownMenuItem>
@@ -233,6 +276,30 @@ export function ConversationSidebar({
       <Button variant="ghost" className="justify-start gap-2" onClick={onOpenSettings}>
         <Settings className="size-4" /> Settings
       </Button>
+
+      <AlertDialog open={Boolean(pendingDelete)} onOpenChange={(open) => !open && setPendingDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this chat?</AlertDialogTitle>
+            <AlertDialogDescription>
+              &ldquo;{pendingDelete?.title}&rdquo; and all of its messages will be permanently removed.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => {
+                const target = pendingDelete;
+                setPendingDelete(null);
+                if (target) void remove(target.id);
+              }}
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
