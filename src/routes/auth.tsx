@@ -49,7 +49,7 @@ function AuthPage() {
     setPending(true);
     try {
       if (mode === "signup") {
-        const { error } = await supabase.auth.signUp({
+        const { data, error } = await supabase.auth.signUp({
           email,
           password,
           options: {
@@ -58,7 +58,13 @@ function AuthPage() {
           },
         });
         if (error) throw error;
-        toast.success("Account created. You can start chatting now.");
+        if (data.session) {
+          toast.success("Account created. You can start chatting now.");
+        } else {
+          toast.success("Account created. Check your inbox to confirm your email, then sign in.");
+          setMode("signin");
+        }
+
       } else {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
