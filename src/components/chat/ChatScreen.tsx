@@ -1,5 +1,5 @@
 import { useNavigate } from "@tanstack/react-router";
-import { Menu, PanelLeft, Plus, Sparkle } from "lucide-react";
+import { Menu, PanelLeft, Plus, Sparkle, Volume2, VolumeX } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
@@ -12,6 +12,7 @@ import { SettingsDialog } from "@/components/chat/SettingsDialog";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { useAuth } from "@/hooks/useAuth";
+import { useAutoSpeak } from "@/hooks/useAutoSpeak";
 import { usePreferences } from "@/hooks/usePreferences";
 import { normalizeLanguage, normalizeVoice } from "@/lib/voice-options";
 import { chatStore } from "@/lib/chat/store";
@@ -28,7 +29,7 @@ const SUGGESTIONS = [
 export function ChatScreen({ conversationId }: { conversationId: string | null }) {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const { preferences } = usePreferences();
+  const { preferences, update } = usePreferences();
   const createConversation = useCreateConversation();
   const state = useConversation(conversationId);
   const [settingsOpen, setSettingsOpen] = useState(false);
