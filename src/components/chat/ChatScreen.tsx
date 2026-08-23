@@ -78,6 +78,14 @@ export function ChatScreen({ conversationId }: { conversationId: string | null }
 
   const busy = state.status === "streaming";
 
+  useAutoSpeak({
+    enabled: preferences.auto_speak && !liveOpen,
+    streaming: busy,
+    messages: state.messages,
+    voice: normalizeVoice(preferences.voice_name, preferences.language),
+    speechRate: preferences.speech_rate,
+  });
+
   const startLive = async () => {
     let id = conversationId;
     if (!id) {
@@ -135,6 +143,20 @@ export function ChatScreen({ conversationId }: { conversationId: string | null }
             variant="ghost"
             size="icon"
             className="ml-auto"
+            aria-label={preferences.auto_speak ? "Turn spoken replies off" : "Turn spoken replies on"}
+            title={preferences.auto_speak ? "Spoken replies on" : "Spoken replies off"}
+            onClick={() => update({ auto_speak: !preferences.auto_speak })}
+          >
+            {preferences.auto_speak ? (
+              <Volume2 className="size-5 text-primary" />
+            ) : (
+              <VolumeX className="size-5" />
+            )}
+          </Button>
+
+          <Button
+            variant="ghost"
+            size="icon"
             aria-label="New chat"
             onClick={() => void navigate({ to: "/" })}
           >
