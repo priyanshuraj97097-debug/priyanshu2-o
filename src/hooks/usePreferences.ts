@@ -7,7 +7,7 @@ import type { Database } from "@/integrations/supabase/types";
 export type Preferences = Database["public"]["Tables"]["user_preferences"]["Row"];
 
 export const DEFAULT_PREFERENCES: Omit<Preferences, "user_id" | "created_at" | "updated_at"> = {
-  auto_speak: false,
+  auto_speak: true,
   custom_instructions: null,
   language: "en",
   memory_enabled: true,
