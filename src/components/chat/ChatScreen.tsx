@@ -139,10 +139,21 @@ export function ChatScreen({ conversationId }: { conversationId: string | null }
             {busy ? "Generating a response…" : "Ready"}
           </span>
 
+          {speaking ? (
+            <Button
+              variant="secondary"
+              size="sm"
+              className="ml-auto gap-1.5"
+              onClick={stopSpeaking}
+            >
+              <Square className="size-3.5" /> Stop voice
+            </Button>
+          ) : null}
+
           <Button
             variant="ghost"
             size="icon"
-            className="ml-auto"
+            className={speaking ? "" : "ml-auto"}
             aria-label={preferences.auto_speak ? "Turn spoken replies off" : "Turn spoken replies on"}
             title={preferences.auto_speak ? "Spoken replies on" : "Spoken replies off"}
             onClick={() => update({ auto_speak: !preferences.auto_speak })}
