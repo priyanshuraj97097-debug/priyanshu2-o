@@ -78,7 +78,7 @@ export function ChatScreen({ conversationId }: { conversationId: string | null }
 
   const busy = state.status === "streaming";
 
-  useAutoSpeak({
+  const { speaking, stop: stopSpeaking } = useAutoSpeak({
     enabled: preferences.auto_speak && !liveOpen,
     streaming: busy,
     messages: state.messages,
