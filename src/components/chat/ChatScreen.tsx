@@ -185,6 +185,9 @@ export function ChatScreen({ conversationId }: { conversationId: string | null }
                 <BrandMark className="size-16" />
                 <h1 className="mt-4 font-display text-3xl font-semibold sm:text-4xl">
                   Priyanshu <span className="aurora-text">2.o</span>
+                  <span className="mt-1 block text-base font-normal text-muted-foreground sm:text-lg">
+                    Multimodal AI assistant for coding, maths, research and voice
+                  </span>
                 </h1>
                 <p className="mt-2 max-w-md text-sm text-muted-foreground">
                   One assistant for conversation, coding, mathematics, research, images, files, and
