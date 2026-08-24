@@ -97,9 +97,14 @@ function AuthPage() {
           <BrandMark className="size-14" />
           <h1 className="mt-3 font-display text-2xl font-semibold">
             Priyanshu <span className="aurora-text">2.o</span>
+            <span className="mt-1 block text-sm font-normal text-muted-foreground">
+              Multimodal AI assistant for coding, maths, research and voice
+            </span>
           </h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {mode === "signin" ? "Welcome back." : "Create your assistant account."}
+          <p className="mt-2 text-sm text-muted-foreground">
+            {mode === "signin"
+              ? "Welcome back — sign in to reach your private conversations, files, and voice assistant."
+              : "Create your free account to start chatting, coding, solving maths, and generating images."}
           </p>
         </div>
 
