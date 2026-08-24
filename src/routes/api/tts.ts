@@ -25,6 +25,10 @@ export const Route = createFileRoute("/api/tts")({
             model: TTS_MODEL,
             input: text,
             voice,
+            instructions:
+              /[\u0900-\u097F]/.test(text) || voice === "coral"
+                ? "Speak in natural, fluent Hindi with correct Devanagari pronunciation and a warm conversational tone."
+                : "Speak in clear, natural English with a warm conversational tone.",
             speed: Math.min(2, Math.max(0.5, body.speed ?? 1)),
           }),
         });
