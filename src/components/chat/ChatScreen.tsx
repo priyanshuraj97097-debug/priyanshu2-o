@@ -110,6 +110,11 @@ export function ChatScreen({ conversationId }: { conversationId: string | null }
 
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="flex items-center gap-2 border-b border-border/60 px-3 py-2">
+          {state.messages.length > 0 ? (
+            <h1 className="sr-only">
+              Priyanshu 2.o — Multimodal AI assistant for coding, maths, research and voice
+            </h1>
+          ) : null}
           <Sheet open={sidebarOpen} onOpenChange={setSidebarOpen}>
             <SheetTrigger asChild>
               <Button variant="ghost" size="icon" className="md:hidden" aria-label="Open chats">
