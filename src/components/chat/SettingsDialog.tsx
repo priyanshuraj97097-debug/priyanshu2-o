@@ -206,6 +206,7 @@ export function SettingsDialog({ open, onOpenChange }: { open: boolean; onOpenCh
                 <p className="text-xs text-muted-foreground">Alert me when a background reply finishes</p>
               </div>
               <Switch
+                aria-label="Alert me when a background reply finishes"
                 checked={preferences.notifications}
                 onCheckedChange={(checked) => update({ notifications: checked })}
               />
@@ -217,12 +218,12 @@ export function SettingsDialog({ open, onOpenChange }: { open: boolean; onOpenCh
 
           <TabsContent value="chat" className="space-y-4 pt-4">
             <div className="space-y-2">
-              <Label>Response style</Label>
+              <Label htmlFor="response-style">Response style</Label>
               <Select
                 value={preferences.model_preference}
                 onValueChange={(value) => update({ model_preference: value })}
               >
-                <SelectTrigger>
+                <SelectTrigger id="response-style" aria-label="Response style">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -251,6 +252,7 @@ export function SettingsDialog({ open, onOpenChange }: { open: boolean; onOpenCh
                 <p className="text-xs text-muted-foreground">Shift + Enter adds a new line</p>
               </div>
               <Switch
+                aria-label="Send with Enter"
                 checked={preferences.send_on_enter}
                 onCheckedChange={(checked) => update({ send_on_enter: checked })}
               />
@@ -261,6 +263,7 @@ export function SettingsDialog({ open, onOpenChange }: { open: boolean; onOpenCh
                 <p className="text-xs text-muted-foreground">Let the assistant look things up online</p>
               </div>
               <Switch
+                aria-label="Web research"
                 checked={preferences.web_search_enabled}
                 onCheckedChange={(checked) => update({ web_search_enabled: checked })}
               />
@@ -269,12 +272,12 @@ export function SettingsDialog({ open, onOpenChange }: { open: boolean; onOpenCh
 
           <TabsContent value="voice" className="space-y-4 pt-4">
             <div className="space-y-2">
-              <Label>Assistant voice</Label>
+              <Label htmlFor="assistant-voice">Assistant voice</Label>
               <Select
                 value={normalizeVoice(preferences.voice_name, preferences.language)}
                 onValueChange={(value) => update({ voice_name: value })}
               >
-                <SelectTrigger>
+                <SelectTrigger id="assistant-voice" aria-label="Assistant voice">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -292,6 +295,7 @@ export function SettingsDialog({ open, onOpenChange }: { open: boolean; onOpenCh
             <div className="space-y-2">
               <Label>Speaking speed — {preferences.speech_rate.toFixed(2)}x</Label>
               <Slider
+                aria-label="Speaking speed"
                 value={[preferences.speech_rate]}
                 min={0.5}
                 max={1.5}
@@ -300,14 +304,14 @@ export function SettingsDialog({ open, onOpenChange }: { open: boolean; onOpenCh
               />
             </div>
             <div className="space-y-2">
-              <Label>Spoken language</Label>
+              <Label htmlFor="spoken-language">Spoken language</Label>
               <Select
                 value={normalizeLanguage(preferences.language)}
                 onValueChange={(value) =>
                   update({ language: value, voice_name: value === "hi" ? "coral" : "alloy" })
                 }
               >
-                <SelectTrigger>
+                <SelectTrigger id="spoken-language" aria-label="Spoken language">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -325,6 +329,7 @@ export function SettingsDialog({ open, onOpenChange }: { open: boolean; onOpenCh
                 <p className="text-xs text-muted-foreground">Read every new answer out loud</p>
               </div>
               <Switch
+                aria-label="Speak replies automatically"
                 checked={preferences.auto_speak}
                 onCheckedChange={(checked) => update({ auto_speak: checked })}
               />
@@ -340,6 +345,7 @@ export function SettingsDialog({ open, onOpenChange }: { open: boolean; onOpenCh
                 </p>
               </div>
               <Switch
+                aria-label="Memory"
                 checked={preferences.memory_enabled}
                 onCheckedChange={(checked) => update({ memory_enabled: checked })}
               />
