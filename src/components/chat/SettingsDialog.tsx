@@ -143,7 +143,11 @@ export function SettingsDialog({ open, onOpenChange }: { open: boolean; onOpenCh
   const previewVoice = async () => {
     try {
       const blob = await synthesize(
-        speechText("Hello, this is Priyanshu 2.o. How can I help you today?"),
+        speechText(
+          normalizeLanguage(preferences.language) === "hi"
+            ? "नमस्ते, मैं प्रियांशु 2.o हूँ। मैं आपकी किस प्रकार सहायता कर सकता हूँ?"
+            : "Hello, this is Priyanshu 2.o. How can I help you today?",
+        ),
         normalizeVoice(preferences.voice_name, preferences.language),
         preferences.speech_rate,
       );
