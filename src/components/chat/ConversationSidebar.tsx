@@ -194,6 +194,7 @@ export function ConversationSidebar({
                 <div className="flex w-full items-center gap-1 p-1">
                   <Input
                     value={renameValue}
+                    aria-label="Chat name"
                     autoFocus
                     onChange={(event) => setRenameValue(event.target.value)}
                     onKeyDown={(event) => {
@@ -202,10 +203,20 @@ export function ConversationSidebar({
                     }}
                     className="h-8"
                   />
-                  <Button size="icon" variant="ghost" onClick={() => void rename(conversation.id)}>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    aria-label="Save chat name"
+                    onClick={() => void rename(conversation.id)}
+                  >
                     <Check className="size-4" />
                   </Button>
-                  <Button size="icon" variant="ghost" onClick={() => setRenamingId(null)}>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    aria-label="Cancel renaming chat"
+                    onClick={() => setRenamingId(null)}
+                  >
                     <X className="size-4" />
                   </Button>
                 </div>
