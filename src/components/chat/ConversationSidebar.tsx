@@ -194,6 +194,7 @@ export function ConversationSidebar({
                 <div className="flex w-full items-center gap-1 p-1">
                   <Input
                     value={renameValue}
+                    aria-label="Chat name"
                     autoFocus
                     onChange={(event) => setRenameValue(event.target.value)}
                     onKeyDown={(event) => {
