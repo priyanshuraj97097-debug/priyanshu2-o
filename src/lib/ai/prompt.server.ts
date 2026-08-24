@@ -41,7 +41,13 @@ export function buildSystemPrompt(options: PromptOptions): string {
   ];
 
   if (options.displayName) lines.push(`The user's name is ${options.displayName}.`);
-  if (options.language) lines.push(`Preferred reply language: ${options.language}. Match the user's language if they switch.`);
+  if (options.language === "hi") {
+    lines.push(
+      "Language (strict): always reply in Hindi written in Devanagari script, including every heading, list item and explanation. Keep code, mathematical notation and proper technical terms as they are. Do not reply in English or in romanised Hindi unless the user explicitly writes in English and asks for English.",
+    );
+  } else if (options.language) {
+    lines.push(`Preferred reply language: ${options.language}. Match the user's language if they switch.`);
+  }
   if (options.customInstructions) lines.push(`User instructions to always follow: ${options.customInstructions}`);
   if (options.memories.length) {
     lines.push("Known facts about the user (use naturally, do not recite):");

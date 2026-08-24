@@ -1,5 +1,5 @@
 import { useNavigate } from "@tanstack/react-router";
-import { Menu, PanelLeft, Plus, Sparkle, Volume2, VolumeX } from "lucide-react";
+import { Menu, PanelLeft, Plus, Sparkle, Square, Volume2, VolumeX } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
@@ -156,7 +156,10 @@ export function ChatScreen({ conversationId }: { conversationId: string | null }
             className={speaking ? "" : "ml-auto"}
             aria-label={preferences.auto_speak ? "Turn spoken replies off" : "Turn spoken replies on"}
             title={preferences.auto_speak ? "Spoken replies on" : "Spoken replies off"}
-            onClick={() => update({ auto_speak: !preferences.auto_speak })}
+            onClick={() => {
+              if (preferences.auto_speak) stopSpeaking();
+              update({ auto_speak: !preferences.auto_speak });
+            }}
           >
             {preferences.auto_speak ? (
               <Volume2 className="size-5 text-primary" />
