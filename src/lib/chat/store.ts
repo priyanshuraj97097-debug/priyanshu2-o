@@ -13,6 +13,8 @@ class ChatStore {
   private listeners = new Map<string, Set<Listener>>();
   private globalListeners = new Set<Listener>();
   private controllers = new Map<string, AbortController>();
+  /** Conversations the user explicitly stopped — never auto-retried. */
+  private stopped = new Set<string>();
   private loading = new Set<string>();
 
   getState(conversationId: string): ConversationState {
