@@ -13,6 +13,8 @@ class ChatStore {
   private listeners = new Map<string, Set<Listener>>();
   private globalListeners = new Set<Listener>();
   private controllers = new Map<string, AbortController>();
+  /** Conversations the user explicitly stopped — never auto-retried. */
+  private stopped = new Set<string>();
   private loading = new Set<string>();
 
   getState(conversationId: string): ConversationState {
@@ -123,108 +125,167 @@ class ChatStore {
       activeTool: null,
     });
 
-    const controller = new AbortController();
-    this.controllers.set(conversationId, controller);
+    this.stopped.delete(conversationId);
 
-    try {
-      const { data: sessionData } = await supabase.auth.getSession();
-      const token = sessionData.session?.access_token;
-      const response = await fetch("/api/chat", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify({ conversationId, text, attachments }),
-        signal: controller.signal,
-      });
+    /**
+     * One network attempt. Returns "retry" when the turn failed before a
+     * single byte of the answer arrived — that case is safe to re-run.
+     */
+    const attempt = async (): Promise<"done" | "retry"> => {
+      const controller = new AbortController();
+      this.controllers.set(conversationId, controller);
 
-      if (!response.ok || !response.body) {
-        const message =
-          response.status === 401
-            ? "Your session expired. Please sign in again."
-            : "The assistant could not be reached. Tap retry to try again.";
-        this.updateMessage(conversationId, assistantMessage.id, { error: message, streaming: false });
-        this.set(conversationId, { status: "idle" });
-        return;
-      }
+      // The server heartbeats every 10s; a longer silence means the
+      // connection died without closing (mobile sleep, proxy drop).
+      let stalled = false;
+      let stallTimer: ReturnType<typeof setTimeout> | undefined;
+      const armStallTimer = () => {
+        if (stallTimer) clearTimeout(stallTimer);
+        stallTimer = setTimeout(() => {
+          stalled = true;
+          controller.abort();
+        }, 45_000);
+      };
 
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = "";
       let content = "";
       const events: ToolEvent[] = [];
+      let received = false;
 
-      for (;;) {
-        const { value, done } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split("\n");
-        buffer = lines.pop() ?? "";
-        for (const line of lines) {
-          if (!line.trim()) continue;
-          let event: Record<string, unknown>;
-          try {
-            event = JSON.parse(line) as Record<string, unknown>;
-          } catch {
-            continue;
-          }
-          switch (event["type"]) {
-            case "user-message": {
-              const id = event["id"];
-              if (typeof id === "string") this.updateMessage(conversationId, userMessage.id, { id });
-              break;
+      try {
+        const { data: sessionData } = await supabase.auth.getSession();
+        const token = sessionData.session?.access_token;
+        armStallTimer();
+        const response = await fetch("/api/chat", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify({ conversationId, text, attachments }),
+          signal: controller.signal,
+        });
+
+        if (!response.ok || !response.body) {
+          if (response.status >= 500 || response.status === 429) return "retry";
+          const message =
+            response.status === 401
+              ? "Your session expired. Please sign in again."
+              : "The assistant could not be reached. Tap retry to try again.";
+          this.updateMessage(conversationId, assistantMessage.id, { error: message, streaming: false });
+          this.set(conversationId, { status: "idle" });
+          return "done";
+        }
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = "";
+
+        for (;;) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          armStallTimer();
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split("\n");
+          buffer = lines.pop() ?? "";
+          for (const line of lines) {
+            if (!line.trim()) continue;
+            let event: Record<string, unknown>;
+            try {
+              event = JSON.parse(line) as Record<string, unknown>;
+            } catch {
+              continue;
             }
-            case "delta": {
-              content += String(event["text"] ?? "");
-              this.updateMessage(conversationId, assistantMessage.id, { content });
-              break;
+            switch (event["type"]) {
+              case "user-message": {
+                const id = event["id"];
+                if (typeof id === "string") this.updateMessage(conversationId, userMessage.id, { id });
+                break;
+              }
+              case "delta": {
+                received = true;
+                content += String(event["text"] ?? "");
+                this.updateMessage(conversationId, assistantMessage.id, { content });
+                break;
+              }
+              case "tool-start": {
+                received = true;
+                this.set(conversationId, { activeTool: String(event["name"] ?? "") });
+                break;
+              }
+              case "tool-event": {
+                received = true;
+                events.push(event["event"] as ToolEvent);
+                this.updateMessage(conversationId, assistantMessage.id, { events: [...events] });
+                this.set(conversationId, { activeTool: null });
+                break;
+              }
+              case "error": {
+                received = true;
+                this.updateMessage(conversationId, assistantMessage.id, {
+                  error: String(event["message"] ?? "Something went wrong."),
+                });
+                break;
+              }
+              case "done": {
+                const id = event["id"];
+                this.updateMessage(conversationId, assistantMessage.id, {
+                  ...(typeof id === "string" ? { id } : {}),
+                  streaming: false,
+                });
+                break;
+              }
+              default:
+                break;
             }
-            case "tool-start": {
-              this.set(conversationId, { activeTool: String(event["name"] ?? "") });
-              break;
-            }
-            case "tool-event": {
-              events.push(event["event"] as ToolEvent);
-              this.updateMessage(conversationId, assistantMessage.id, { events: [...events] });
-              this.set(conversationId, { activeTool: null });
-              break;
-            }
-            case "error": {
-              this.updateMessage(conversationId, assistantMessage.id, {
-                error: String(event["message"] ?? "Something went wrong."),
-              });
-              break;
-            }
-            case "done": {
-              const id = event["id"];
-              this.updateMessage(conversationId, assistantMessage.id, {
-                ...(typeof id === "string" ? { id } : {}),
-                streaming: false,
-              });
-              break;
-            }
-            default:
-              break;
           }
         }
-      }
 
-      this.updateMessage(conversationId, assistantMessage.id, { streaming: false });
-      this.set(conversationId, { status: "idle", activeTool: null });
-    } catch (error) {
-      const aborted = error instanceof DOMException && error.name === "AbortError";
-      this.updateMessage(conversationId, assistantMessage.id, {
-        streaming: false,
-        ...(aborted ? {} : { error: "Connection lost. Tap retry to continue." }),
-      });
-      this.set(conversationId, { status: "idle", activeTool: null, loaded: aborted ? false : true });
-    } finally {
-      this.controllers.delete(conversationId);
+        this.updateMessage(conversationId, assistantMessage.id, { streaming: false });
+        this.set(conversationId, { status: "idle", activeTool: null });
+        return "done";
+      } catch (error) {
+        const userStopped = this.stopped.has(conversationId);
+        const aborted = error instanceof DOMException && error.name === "AbortError";
+
+        if (!userStopped && (stalled || !aborted) && !received) return "retry";
+
+        this.updateMessage(conversationId, assistantMessage.id, {
+          streaming: false,
+          // Partial text stays on screen and in the thread; only a genuine
+          // failure with nothing to show gets an error banner.
+          ...(userStopped || received ? {} : { error: "Connection lost. Tap retry to continue." }),
+        });
+        this.set(conversationId, {
+          status: "idle",
+          activeTool: null,
+          // Re-sync from the server so a partially saved turn is reconciled.
+          loaded: received ? false : true,
+        });
+        return "done";
+      } finally {
+        if (stallTimer) clearTimeout(stallTimer);
+        this.controllers.delete(conversationId);
+      }
+    };
+
+    for (let tryIndex = 0; tryIndex < 3; tryIndex += 1) {
+      const outcome = await attempt();
+      if (outcome === "done" || this.stopped.has(conversationId)) {
+        this.stopped.delete(conversationId);
+        return;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 400 * 2 ** tryIndex));
     }
+
+    this.updateMessage(conversationId, assistantMessage.id, {
+      streaming: false,
+      error: "The assistant could not be reached. Tap retry to try again.",
+    });
+    this.set(conversationId, { status: "idle", activeTool: null });
   }
 
   stop(conversationId: string) {
+    this.stopped.add(conversationId);
     this.controllers.get(conversationId)?.abort();
   }
 
@@ -260,8 +321,10 @@ class ChatStore {
   }
 
   forget(conversationId: string) {
+    this.stopped.add(conversationId);
     this.controllers.get(conversationId)?.abort();
     this.controllers.delete(conversationId);
+    this.stopped.delete(conversationId);
     this.states.delete(conversationId);
     this.globalListeners.forEach((listener) => listener());
   }

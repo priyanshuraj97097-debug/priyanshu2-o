@@ -135,23 +135,42 @@ export const Route = createFileRoute("/api/chat")({
           return new Response(JSON.stringify({ error: "Nothing to send." }), { status: 400 });
         }
 
-        const { data: conversation } = await ctx.supabase
-          .from("conversations")
-          .select("id, title")
-          .eq("id", conversationId)
-          .maybeSingle();
-        if (!conversation) return unauthorized();
+        // All setup reads run concurrently — this is the biggest chunk of
+        // pre-token latency, and none of them depend on each other.
+        const [conversationRes, prefsRes, profileRes, historyRes, insertedRes] = await Promise.all([
+          ctx.supabase.from("conversations").select("id, title").eq("id", conversationId).maybeSingle(),
+          ctx.supabase
+            .from("user_preferences")
+            .select("language, memory_enabled, model_preference, custom_instructions")
+            .eq("user_id", ctx.userId)
+            .maybeSingle(),
+          ctx.supabase.from("profiles").select("display_name").eq("id", ctx.userId).maybeSingle(),
+          // Newest-first + reverse keeps the *recent* window of a long thread,
+          // instead of silently freezing context at the first 60 messages.
+          ctx.supabase
+            .from("messages")
+            .select("id, role, content, attachments, created_at")
+            .eq("conversation_id", conversationId)
+            .order("created_at", { ascending: false })
+            .limit(60),
+          ctx.supabase
+            .from("messages")
+            .insert({
+              conversation_id: conversationId,
+              user_id: ctx.userId,
+              role: "user",
+              content: text,
+              attachments: attachments as never,
+            })
+            .select("id")
+            .single(),
+        ]);
 
-        const { data: prefs } = await ctx.supabase
-          .from("user_preferences")
-          .select("language, memory_enabled, model_preference, custom_instructions")
-          .eq("user_id", ctx.userId)
-          .maybeSingle();
-        const { data: profile } = await ctx.supabase
-          .from("profiles")
-          .select("display_name")
-          .eq("id", ctx.userId)
-          .maybeSingle();
+        const conversation = conversationRes.data;
+        if (!conversation) return unauthorized();
+        const prefs = prefsRes.data;
+        const profile = profileRes.data;
+        const inserted = insertedRes.data;
 
         let memories: string[] = [];
         if (prefs?.memory_enabled !== false) {
@@ -163,50 +182,76 @@ export const Route = createFileRoute("/api/chat")({
           memories = (data ?? []).map((m) => m.content);
         }
 
-        const { data: history } = await ctx.supabase
-          .from("messages")
-          .select("id, role, content, attachments")
-          .eq("conversation_id", conversationId)
-          .order("created_at", { ascending: true })
-          .limit(60);
+        const history = ((historyRes.data ?? []) as StoredRow[])
+          .slice()
+          .reverse()
+          // The just-inserted user turn is appended explicitly below; guard
+          // against it also arriving through the history read.
+          .filter((row) => row.id !== inserted?.id);
 
-        const { data: inserted } = await ctx.supabase
-          .from("messages")
-          .insert({
-            conversation_id: conversationId,
-            user_id: ctx.userId,
-            role: "user",
-            content: text,
-            attachments: attachments as never,
-          })
-          .select("id")
-          .single();
-
-        const isFirstTurn = (history ?? []).length === 0;
-        const modelMessages = await buildHistory(ctx, (history ?? []) as StoredRow[]);
+        const isFirstTurn = history.length === 0;
+        const modelMessages = await buildHistory(ctx, history);
         modelMessages.push(
           ...(await buildHistory(ctx, [
             { id: "new", role: "user", content: text, attachments },
           ] as StoredRow[])),
         );
 
+        // Kick off the title request in parallel with generation so the first
+        // turn never waits for it before the `done` event.
+        const titlePromise = isFirstTurn
+          ? generateTitle(text || attachments[0]?.name || "New chat")
+          : Promise.resolve(null);
+
         const toolEvents: ToolEvent[] = [];
+        const model = resolveChatModel(prefs?.model_preference);
+
         const stream = new ReadableStream<Uint8Array>({
           async start(controller) {
+            let closed = false;
             const send = (event: Record<string, unknown>) => {
+              if (closed) return;
               try {
                 controller.enqueue(encodeEvent(event));
               } catch {
-                /* client disconnected */
+                closed = true;
               }
             };
 
             send({ type: "user-message", id: inserted?.id ?? null });
 
+            // Keeps proxies and mobile radios from dropping a connection that
+            // is quiet while the model reasons or a tool runs.
+            const heartbeat = setInterval(() => send({ type: "ping" }), 10_000);
+
             let fullText = "";
+            let persisted = false;
+
+            const persist = async (): Promise<string | null> => {
+              if (persisted) return null;
+              persisted = true;
+              if (!fullText.trim() && !toolEvents.length) return null;
+              const { data: saved } = await ctx.supabase
+                .from("messages")
+                .insert({
+                  conversation_id: conversationId,
+                  user_id: ctx.userId,
+                  role: "assistant",
+                  content: fullText,
+                  model,
+                  tool_calls: toolEvents as never,
+                })
+                .select("id")
+                .single();
+              await ctx.supabase
+                .from("conversations")
+                .update({ last_message_at: new Date().toISOString() })
+                .eq("id", conversationId);
+              return saved?.id ?? null;
+            };
+
             try {
               const provider = createProvider();
-              const model = resolveChatModel(prefs?.model_preference);
               const result = streamText({
                 model: provider(model),
                 system: buildSystemPrompt({
@@ -226,6 +271,12 @@ export const Route = createFileRoute("/api/chat")({
                   },
                 }),
                 stopWhen: stepCountIs(12),
+                // Transient gateway/network failures are retried upstream
+                // instead of surfacing as a dead turn.
+                maxRetries: 3,
+                // A client that stops or disconnects also stops the model,
+                // so no tokens are burned after the user walks away.
+                abortSignal: request.signal,
               });
 
               for await (const part of result.fullStream) {
@@ -235,11 +286,15 @@ export const Route = createFileRoute("/api/chat")({
                 } else if (part.type === "tool-call") {
                   send({ type: "tool-start", name: part.toolName });
                 } else if (part.type === "error") {
-                  const message =
-                    typeof part.error === "object" && part.error && "statusCode" in part.error
-                      ? friendlyGatewayError(Number((part.error as { statusCode: number }).statusCode))
-                      : "The assistant could not finish that response.";
-                  send({ type: "error", message });
+                  const error = part.error as { statusCode?: number; message?: string } | undefined;
+                  const status = Number(error?.statusCode ?? 0);
+                  console.error("[chat] stream error", error?.message ?? error);
+                  send({
+                    type: "error",
+                    message: status
+                      ? friendlyGatewayError(status)
+                      : "The assistant could not finish that response.",
+                  });
                 }
               }
 
@@ -249,48 +304,50 @@ export const Route = createFileRoute("/api/chat")({
                 send({ type: "error", message: "The assistant returned an empty response. Try again." });
               }
 
-              const { data: saved } = await ctx.supabase
-                .from("messages")
-                .insert({
-                  conversation_id: conversationId,
-                  user_id: ctx.userId,
-                  role: "assistant",
-                  content: fullText,
-                  model,
-                  tool_calls: toolEvents as never,
-                  token_usage: usage ? (usage as never) : null,
-                })
-                .select("id")
-                .single();
-
-              await ctx.supabase
-                .from("conversations")
-                .update({ last_message_at: new Date().toISOString() })
-                .eq("id", conversationId);
+              const savedId = await persist();
 
               if (usage) {
-                await ctx.supabase.from("usage_events").insert({
-                  user_id: ctx.userId,
-                  kind: "chat",
-                  model,
-                  input_tokens: Math.round(usage.inputTokens ?? 0),
-                  output_tokens: Math.round(usage.outputTokens ?? 0),
-                });
+                void ctx.supabase
+                  .from("usage_events")
+                  .insert({
+                    user_id: ctx.userId,
+                    kind: "chat",
+                    model,
+                    input_tokens: Math.round(usage.inputTokens ?? 0),
+                    output_tokens: Math.round(usage.outputTokens ?? 0),
+                  })
+                  .then(() => undefined);
               }
 
-              let title: string | null = null;
-              if (isFirstTurn) {
-                title = await generateTitle(text || attachments[0]?.name || "New chat");
-                if (title) {
-                  await ctx.supabase.from("conversations").update({ title }).eq("id", conversationId);
-                }
+              const title = await titlePromise;
+              if (title) {
+                await ctx.supabase.from("conversations").update({ title }).eq("id", conversationId);
               }
 
-              send({ type: "done", id: saved?.id ?? null, title });
+              send({ type: "done", id: savedId, title });
             } catch (error) {
+              const aborted =
+                request.signal.aborted ||
+                (error instanceof Error && (error.name === "AbortError" || error.name === "TimeoutError"));
               console.error("[chat]", error);
-              send({ type: "error", message: "The assistant is unavailable right now. Please retry." });
+              // Whatever streamed before the failure stays part of the thread,
+              // so context is never silently lost.
+              const savedId = await persist().catch(() => null);
+              if (aborted) {
+                send({ type: "done", id: savedId, title: null });
+              } else {
+                const status = Number((error as { statusCode?: number })?.statusCode ?? 0);
+                send({
+                  type: "error",
+                  message: status
+                    ? friendlyGatewayError(status)
+                    : "The assistant is unavailable right now. Please retry.",
+                });
+                send({ type: "done", id: savedId, title: null });
+              }
             } finally {
+              clearInterval(heartbeat);
+              closed = true;
               try {
                 controller.close();
               } catch {
