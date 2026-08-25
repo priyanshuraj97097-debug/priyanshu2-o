@@ -321,8 +321,10 @@ class ChatStore {
   }
 
   forget(conversationId: string) {
+    this.stopped.add(conversationId);
     this.controllers.get(conversationId)?.abort();
     this.controllers.delete(conversationId);
+    this.stopped.delete(conversationId);
     this.states.delete(conversationId);
     this.globalListeners.forEach((listener) => listener());
   }
