@@ -14,6 +14,63 @@ export type Database = {
   }
   public: {
     Tables: {
+      ai_provider_config: {
+        Row: {
+          daily_request_cap: number | null
+          enabled: boolean
+          label: string
+          models: Json
+          monthly_request_cap: number | null
+          paid: boolean
+          priority: number
+          provider: string
+          tasks: string[]
+          updated_at: string
+        }
+        Insert: {
+          daily_request_cap?: number | null
+          enabled?: boolean
+          label: string
+          models?: Json
+          monthly_request_cap?: number | null
+          paid?: boolean
+          priority?: number
+          provider: string
+          tasks?: string[]
+          updated_at?: string
+        }
+        Update: {
+          daily_request_cap?: number | null
+          enabled?: boolean
+          label?: string
+          models?: Json
+          monthly_request_cap?: number | null
+          paid?: boolean
+          priority?: number
+          provider?: string
+          tasks?: string[]
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      ai_settings: {
+        Row: {
+          key: string
+          updated_at: string
+          value: Json
+        }
+        Insert: {
+          key: string
+          updated_at?: string
+          value: Json
+        }
+        Update: {
+          key?: string
+          updated_at?: string
+          value?: Json
+        }
+        Relationships: []
+      }
       conversations: {
         Row: {
           archived: boolean
@@ -191,30 +248,57 @@ export type Database = {
       }
       usage_events: {
         Row: {
+          conversation_id: string | null
           created_at: string
+          error_code: string | null
+          estimated_cost: number
+          fallback_used: boolean
           id: string
           input_tokens: number
           kind: string
+          latency_ms: number | null
           model: string | null
           output_tokens: number
+          provider: string | null
+          status: string
+          task_type: string | null
+          total_tokens: number
           user_id: string
         }
         Insert: {
+          conversation_id?: string | null
           created_at?: string
+          error_code?: string | null
+          estimated_cost?: number
+          fallback_used?: boolean
           id?: string
           input_tokens?: number
           kind: string
+          latency_ms?: number | null
           model?: string | null
           output_tokens?: number
+          provider?: string | null
+          status?: string
+          task_type?: string | null
+          total_tokens?: number
           user_id: string
         }
         Update: {
+          conversation_id?: string | null
           created_at?: string
+          error_code?: string | null
+          estimated_cost?: number
+          fallback_used?: boolean
           id?: string
           input_tokens?: number
           kind?: string
+          latency_ms?: number | null
           model?: string | null
           output_tokens?: number
+          provider?: string | null
+          status?: string
+          task_type?: string | null
+          total_tokens?: number
           user_id?: string
         }
         Relationships: []
@@ -270,15 +354,42 @@ export type Database = {
         }
         Relationships: []
       }
+      user_roles: {
+        Row: {
+          created_at: string
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
     }
     Enums: {
-      [_ in never]: never
+      app_role: "admin" | "moderator" | "user"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -405,6 +516,8 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      app_role: ["admin", "moderator", "user"],
+    },
   },
 } as const
