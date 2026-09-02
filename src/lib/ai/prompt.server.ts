@@ -1,7 +1,11 @@
+import type { Language } from "./classify.server";
+
 export type PromptOptions = {
   memories: string[];
   customInstructions?: string | null;
   language?: string | null;
+  /** Language detected from the user's latest message. */
+  detectedLanguage?: Language;
   searchAvailable: boolean;
   displayName?: string | null;
 };
