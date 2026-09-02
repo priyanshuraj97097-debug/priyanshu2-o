@@ -1,7 +1,11 @@
+import type { Language } from "./classify.server";
+
 export type PromptOptions = {
   memories: string[];
   customInstructions?: string | null;
   language?: string | null;
+  /** Language detected from the user's latest message. */
+  detectedLanguage?: Language;
   searchAvailable: boolean;
   displayName?: string | null;
 };
@@ -41,12 +45,23 @@ export function buildSystemPrompt(options: PromptOptions): string {
   ];
 
   if (options.displayName) lines.push(`The user's name is ${options.displayName}.`);
-  if (options.language === "hi") {
-    lines.push(
-      "Language (strict): always reply in Hindi written in Devanagari script, including every heading, list item and explanation. Keep code, mathematical notation and proper technical terms as they are. Do not reply in English or in romanised Hindi unless the user explicitly writes in English and asks for English.",
-    );
-  } else if (options.language) {
-    lines.push(`Preferred reply language: ${options.language}. Match the user's language if they switch.`);
+
+  lines.push(
+    "Language rules:",
+    "- Always reply in the language the user writes in. English → English. Hindi (Devanagari) → Hindi in Devanagari. Hinglish (Hindi written in Latin letters) → natural Hinglish.",
+    "- Never translate an English question into Hindi or any other language unless the user explicitly asks.",
+    "- Keep the same language for the rest of the conversation until the user switches or asks for another language.",
+    "- Code, maths notation and proper technical terms stay as they are in every language.",
+  );
+  const detected = options.detectedLanguage;
+  if (detected === "hi") {
+    lines.push("The user's latest message is in Hindi (Devanagari). Reply in Hindi using Devanagari script.");
+  } else if (detected === "hinglish") {
+    lines.push("The user's latest message is in Hinglish. Reply in natural, friendly Hinglish (Latin script).");
+  } else if (detected === "en") {
+    lines.push("The user's latest message is in English. Reply in English.");
+  } else if (options.language === "hi") {
+    lines.push("If the language is unclear, prefer Hindi in Devanagari script — that is the user's chosen app language.");
   }
   if (options.customInstructions) lines.push(`User instructions to always follow: ${options.customInstructions}`);
   if (options.memories.length) {

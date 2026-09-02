@@ -16,7 +16,7 @@ type ProviderDefinition = {
   id: string;
   label: string;
   envKey: string;
-  baseURL: string | ((env: NodeJS.ProcessEnv) => string | null);
+  baseURL: string | ((env: Record<string, string | undefined>) => string | null);
   /** Extra headers beyond the bearer Authorization header. */
   headers?: (key: string) => Record<string, string>;
   authHeader?: (key: string) => Record<string, string>;
