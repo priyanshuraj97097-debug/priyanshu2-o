@@ -1,24 +1,39 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { stepCountIs, streamText, type ModelMessage } from "ai";
+import { z } from "zod";
 
-import { friendlyGatewayError, getSearchProvider, resolveChatModel, TITLE_MODEL, GATEWAY_BASE_URL, gatewayHeaders } from "@/lib/ai/config.server";
-import { createProvider } from "@/lib/ai/gateway.server";
+import { classifyTask, detectLanguage } from "@/lib/ai/classify.server";
+import { getSearchProvider } from "@/lib/ai/config.server";
 import { buildSystemPrompt } from "@/lib/ai/prompt.server";
+import type { ProviderAdapter } from "@/lib/ai/providers/types";
+import {
+  checkUserRateLimit,
+  classifyFailure,
+  estimateCost,
+  loadSettings,
+  markProviderFailure,
+  markProviderSuccess,
+  planRoute,
+  recordUsage,
+} from "@/lib/ai/router.server";
+import { generateTitle } from "@/lib/ai/title.server";
 import { buildTools, type ToolEvent } from "@/lib/ai/tools.server";
 import { authenticateRequest, unauthorized, type UserContext } from "@/lib/supabase-user.server";
 
-type Attachment = {
-  path: string;
-  name: string;
-  mime: string;
-  size?: number;
-};
+const AttachmentSchema = z.object({
+  path: z.string().min(1).max(512),
+  name: z.string().min(1).max(256),
+  mime: z.string().min(1).max(128),
+  size: z.number().int().nonnegative().optional(),
+});
 
-type ChatBody = {
-  conversationId?: string;
-  text?: string;
-  attachments?: Attachment[];
-};
+const ChatBodySchema = z.object({
+  conversationId: z.string().uuid(),
+  text: z.string().max(60_000).optional(),
+  attachments: z.array(AttachmentSchema).max(10).optional(),
+});
+
+type Attachment = z.infer<typeof AttachmentSchema>;
 
 type StoredRow = {
   id: string;
@@ -29,9 +44,18 @@ type StoredRow = {
 
 const TEXT_MIME = /^(text\/|application\/(json|xml|javascript|typescript|x-yaml|sql|csv))/;
 const MAX_INLINE_BYTES = 12 * 1024 * 1024;
+const IMAGE_REQUEST_RE =
+  /\b(generate|create|make|draw|design|render|paint|illustrate|show me)\b[^.]{0,60}\b(image|picture|photo|logo|poster|illustration|art|artwork|wallpaper|drawing|banner|icon)\b|\b(image|picture|photo|logo|poster|illustration|drawing|banner)\b[^.]{0,40}\b(banao|bana do|banaiye|dikhao)\b|चित्र|तस्वीर/i;
 
 function encodeEvent(event: Record<string, unknown>): Uint8Array {
   return new TextEncoder().encode(`${JSON.stringify(event)}\n`);
+}
+
+function json(body: Record<string, unknown>, status: number): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { "content-type": "application/json" },
+  });
 }
 
 async function attachmentToParts(
@@ -90,30 +114,15 @@ async function buildHistory(ctx: UserContext, rows: StoredRow[]): Promise<ModelM
   return messages;
 }
 
-async function generateTitle(firstMessage: string): Promise<string | null> {
-  try {
-    const response = await fetch(`${GATEWAY_BASE_URL}/chat/completions`, {
-      method: "POST",
-      headers: gatewayHeaders({ "Content-Type": "application/json" }),
-      body: JSON.stringify({
-        model: TITLE_MODEL,
-        messages: [
-          {
-            role: "system",
-            content:
-              "Write a 2-5 word title for this conversation. Plain text only, no quotes, no punctuation at the end.",
-          },
-          { role: "user", content: firstMessage.slice(0, 500) },
-        ],
-      }),
-    });
-    if (!response.ok) return null;
-    const data = (await response.json()) as { choices?: { message?: { content?: string } }[] };
-    const title = data.choices?.[0]?.message?.content?.trim().replace(/^["']|["']$/g, "");
-    return title ? title.slice(0, 80) : null;
-  } catch {
-    return null;
-  }
+/** Providers that cannot read files get a text placeholder instead of failing outright. */
+function stripAttachments(messages: ModelMessage[]): ModelMessage[] {
+  return messages.map((message) => {
+    if (message.role !== "user" || typeof message.content === "string") return message;
+    const text = (message.content as Array<{ type: string; text?: string; filename?: string }>)
+      .map((part) => (part.type === "text" ? part.text ?? "" : `[Attached file: ${part.filename ?? "file"}]`))
+      .join("\n");
+    return { role: "user", content: text };
+  });
 }
 
 export const Route = createFileRoute("/api/chat")({
@@ -123,20 +132,24 @@ export const Route = createFileRoute("/api/chat")({
         const ctx = await authenticateRequest(request);
         if (!ctx) return unauthorized();
 
-        const body = (await request.json()) as ChatBody;
-        const conversationId = body.conversationId;
-        if (!conversationId) {
-          return new Response(JSON.stringify({ error: "Missing conversation." }), { status: 400 });
+        let raw: unknown;
+        try {
+          raw = await request.json();
+        } catch {
+          return json({ error: "Invalid request." }, 400);
         }
+        const parsed = ChatBodySchema.safeParse(raw);
+        if (!parsed.success) return json({ error: "Invalid request." }, 400);
 
-        const attachments = body.attachments ?? [];
-        const text = (body.text ?? "").trim();
-        if (!text && !attachments.length) {
-          return new Response(JSON.stringify({ error: "Nothing to send." }), { status: 400 });
-        }
+        const { conversationId } = parsed.data;
+        const attachments = parsed.data.attachments ?? [];
+        const text = (parsed.data.text ?? "").trim();
+        if (!text && !attachments.length) return json({ error: "Nothing to send." }, 400);
 
-        // All setup reads run concurrently — this is the biggest chunk of
-        // pre-token latency, and none of them depend on each other.
+        const settings = await loadSettings();
+        const limited = await checkUserRateLimit(ctx.userId, settings);
+        if (limited) return json({ error: limited }, 429);
+
         const [conversationRes, prefsRes, profileRes, historyRes, insertedRes] = await Promise.all([
           ctx.supabase.from("conversations").select("id, title").eq("id", conversationId).maybeSingle(),
           ctx.supabase
@@ -145,8 +158,6 @@ export const Route = createFileRoute("/api/chat")({
             .eq("user_id", ctx.userId)
             .maybeSingle(),
           ctx.supabase.from("profiles").select("display_name").eq("id", ctx.userId).maybeSingle(),
-          // Newest-first + reverse keeps the *recent* window of a long thread,
-          // instead of silently freezing context at the first 60 messages.
           ctx.supabase
             .from("messages")
             .select("id, role, content, attachments, created_at")
@@ -185,8 +196,6 @@ export const Route = createFileRoute("/api/chat")({
         const history = ((historyRes.data ?? []) as StoredRow[])
           .slice()
           .reverse()
-          // The just-inserted user turn is appended explicitly below; guard
-          // against it also arriving through the history read.
           .filter((row) => row.id !== inserted?.id);
 
         const isFirstTurn = history.length === 0;
@@ -197,14 +206,37 @@ export const Route = createFileRoute("/api/chat")({
           ] as StoredRow[])),
         );
 
-        // Kick off the title request in parallel with generation so the first
-        // turn never waits for it before the `done` event.
+        // ---- routing decision ----
+        const historyHasAttachments = history.some(
+          (row) => Array.isArray(row.attachments) && (row.attachments as unknown[]).length > 0,
+        );
+        const task = classifyTask({
+          text,
+          attachmentMimes: attachments.map((a) => a.mime),
+          wantsReasoning: prefs?.model_preference === "quality",
+        });
+        const detectedLanguage = detectLanguage(text);
+        const needsTools = task === "math" || IMAGE_REQUEST_RE.test(text);
+        const needsAttachments = attachments.length > 0;
+
+        const plan = await planRoute({ task, needsTools, needsAttachments });
+        if (!plan.candidates.length) {
+          return json({ error: plan.unavailableReason ?? "AI is temporarily unavailable." }, 503);
+        }
+
         const titlePromise = isFirstTurn
           ? generateTitle(text || attachments[0]?.name || "New chat")
           : Promise.resolve(null);
 
         const toolEvents: ToolEvent[] = [];
-        const model = resolveChatModel(prefs?.model_preference);
+        const system = buildSystemPrompt({
+          memories,
+          customInstructions: prefs?.custom_instructions ?? null,
+          language: prefs?.language ?? null,
+          detectedLanguage,
+          searchAvailable: Boolean(getSearchProvider()),
+          displayName: profile?.display_name ?? null,
+        });
 
         const stream = new ReadableStream<Uint8Array>({
           async start(controller) {
@@ -219,13 +251,11 @@ export const Route = createFileRoute("/api/chat")({
             };
 
             send({ type: "user-message", id: inserted?.id ?? null });
-
-            // Keeps proxies and mobile radios from dropping a connection that
-            // is quiet while the model reasons or a tool runs.
             const heartbeat = setInterval(() => send({ type: "ping" }), 10_000);
 
             let fullText = "";
             let persisted = false;
+            let servedBy: { provider: string; model: string } | null = null;
 
             const persist = async (): Promise<string | null> => {
               if (persisted) return null;
@@ -238,7 +268,7 @@ export const Route = createFileRoute("/api/chat")({
                   user_id: ctx.userId,
                   role: "assistant",
                   content: fullText,
-                  model,
+                  model: servedBy ? `${servedBy.provider}:${servedBy.model}` : null,
                   tool_calls: toolEvents as never,
                 })
                 .select("id")
@@ -250,101 +280,168 @@ export const Route = createFileRoute("/api/chat")({
               return saved?.id ?? null;
             };
 
-            try {
-              const provider = createProvider();
-              const result = streamText({
-                model: provider(model),
-                system: buildSystemPrompt({
-                  memories,
-                  customInstructions: prefs?.custom_instructions ?? null,
-                  language: prefs?.language ?? null,
-                  searchAvailable: Boolean(getSearchProvider()),
-                  displayName: profile?.display_name ?? null,
-                }),
-                messages: modelMessages,
-                tools: buildTools({
-                  ...ctx,
-                  conversationId,
-                  emit: (event) => {
-                    toolEvents.push(event);
-                    send({ type: "tool-event", event });
-                  },
-                }),
-                stopWhen: stepCountIs(12),
-                // Transient gateway/network failures are retried upstream
-                // instead of surfacing as a dead turn.
-                maxRetries: 3,
-                // A client that stops or disconnects also stops the model,
-                // so no tokens are burned after the user walks away.
-                abortSignal: request.signal,
-              });
+            const tools = buildTools({
+              ...ctx,
+              conversationId,
+              emit: (event) => {
+                toolEvents.push(event);
+                send({ type: "tool-event", event });
+              },
+            });
 
-              for await (const part of result.fullStream) {
-                if (part.type === "text-delta") {
-                  fullText += part.text;
-                  send({ type: "delta", text: part.text });
-                } else if (part.type === "tool-call") {
-                  send({ type: "tool-start", name: part.toolName });
-                } else if (part.type === "error") {
-                  const error = part.error as { statusCode?: number; message?: string } | undefined;
-                  const status = Number(error?.statusCode ?? 0);
-                  console.error("[chat] stream error", error?.message ?? error);
-                  send({
-                    type: "error",
-                    message: status
-                      ? friendlyGatewayError(status)
-                      : "The assistant could not finish that response.",
-                  });
+            /**
+             * Streams one provider attempt. Returns "ok" when the response
+             * completed, "failed-before-output" when it is safe to fall back,
+             * or "failed-after-output" when partial text was already sent.
+             */
+            const attempt = async (
+              adapter: ProviderAdapter,
+              fallbackUsed: boolean,
+            ): Promise<"ok" | "failed-before-output" | "failed-after-output" | "aborted"> => {
+              const model = adapter.modelFor(task);
+              const startedAt = Date.now();
+              let producedOutput = false;
+              const messages =
+                adapter.supportsAttachments || !(needsAttachments || historyHasAttachments)
+                  ? modelMessages
+                  : stripAttachments(modelMessages);
+
+              const fail = (error: unknown) => {
+                const failure = classifyFailure(error);
+                const message = error instanceof Error ? error.message : String(error);
+                console.error(`[chat] ${adapter.id}/${model} failed (${failure.kind} ${failure.status}):`, message);
+                if (failure.kind !== "bad-request") {
+                  markProviderFailure(adapter.id, failure.kind, failure.retryAfterMs, message.slice(0, 200));
                 }
-              }
+                recordUsage({
+                  userId: ctx.userId,
+                  conversationId,
+                  provider: adapter.id,
+                  model,
+                  taskType: task,
+                  inputTokens: 0,
+                  outputTokens: 0,
+                  latencyMs: Date.now() - startedAt,
+                  status: failure.kind === "rateLimited" || failure.kind === "quota" ? "rate_limited" : "error",
+                  errorCode: failure.status ? String(failure.status) : failure.kind,
+                  estimatedCost: 0,
+                  fallbackUsed,
+                });
+              };
 
-              const usage = await Promise.resolve(result.usage).catch(() => undefined);
-              const hasImage = toolEvents.some((e) => e.kind === "image");
-              if (!fullText.trim() && !hasImage) {
-                send({ type: "error", message: "The assistant returned an empty response. Try again." });
+              try {
+                const result = streamText({
+                  model: adapter.languageModel(task),
+                  system,
+                  messages,
+                  ...(adapter.supportsTools ? { tools, stopWhen: stepCountIs(12) } : {}),
+                  // One quick in-provider retry for blips; the router handles
+                  // anything longer by moving to the next provider.
+                  maxRetries: 1,
+                  abortSignal: request.signal,
+                });
+
+                for await (const part of result.fullStream) {
+                  if (part.type === "text-delta") {
+                    if (!part.text) continue;
+                    producedOutput = true;
+                    fullText += part.text;
+                    send({ type: "delta", text: part.text });
+                  } else if (part.type === "tool-call") {
+                    producedOutput = true;
+                    send({ type: "tool-start", name: part.toolName });
+                  } else if (part.type === "error") {
+                    throw part.error;
+                  }
+                }
+
+                const usage = await Promise.resolve(result.usage).catch(() => undefined);
+                const inputTokens = usage?.inputTokens ?? 0;
+                const outputTokens = usage?.outputTokens ?? 0;
+                const hasImage = toolEvents.some((e) => e.kind === "image");
+                if (!fullText.trim() && !hasImage) {
+                  throw Object.assign(new Error("Empty response from provider"), { statusCode: 502 });
+                }
+
+                servedBy = { provider: adapter.id, model };
+                markProviderSuccess(adapter.id);
+                recordUsage({
+                  userId: ctx.userId,
+                  conversationId,
+                  provider: adapter.id,
+                  model,
+                  taskType: task,
+                  inputTokens,
+                  outputTokens,
+                  latencyMs: Date.now() - startedAt,
+                  status: "success",
+                  estimatedCost: estimateCost(adapter, inputTokens, outputTokens),
+                  fallbackUsed,
+                });
+                return "ok";
+              } catch (error) {
+                const aborted =
+                  request.signal.aborted ||
+                  (error instanceof Error && (error.name === "AbortError" || error.name === "TimeoutError"));
+                if (aborted) {
+                  recordUsage({
+                    userId: ctx.userId,
+                    conversationId,
+                    provider: adapter.id,
+                    model,
+                    taskType: task,
+                    inputTokens: 0,
+                    outputTokens: 0,
+                    latencyMs: Date.now() - startedAt,
+                    status: "aborted",
+                    estimatedCost: 0,
+                    fallbackUsed,
+                  });
+                  servedBy = { provider: adapter.id, model };
+                  return "aborted";
+                }
+                fail(error);
+                if (producedOutput) {
+                  servedBy = { provider: adapter.id, model };
+                  return "failed-after-output";
+                }
+                return "failed-before-output";
+              }
+            };
+
+            try {
+              let outcome: Awaited<ReturnType<typeof attempt>> = "failed-before-output";
+              for (let index = 0; index < plan.candidates.length; index += 1) {
+                const adapter = plan.candidates[index]!;
+                outcome = await attempt(adapter, index > 0);
+                if (outcome !== "failed-before-output") break;
+                if (request.signal.aborted) {
+                  outcome = "aborted";
+                  break;
+                }
               }
 
               const savedId = await persist();
 
-              if (usage) {
-                void ctx.supabase
-                  .from("usage_events")
-                  .insert({
-                    user_id: ctx.userId,
-                    kind: "chat",
-                    model,
-                    input_tokens: Math.round(usage.inputTokens ?? 0),
-                    output_tokens: Math.round(usage.outputTokens ?? 0),
-                  })
-                  .then(() => undefined);
+              if (outcome === "failed-before-output") {
+                send({
+                  type: "error",
+                  message: "Priyanshu 2.o is at full capacity right now. Please try again in a few minutes.",
+                });
+              } else if (outcome === "failed-after-output") {
+                send({ type: "error", message: "The response was cut short. You can retry to continue." });
               }
 
-              const title = await titlePromise;
+              const title = outcome === "ok" ? await titlePromise : null;
               if (title) {
                 await ctx.supabase.from("conversations").update({ title }).eq("id", conversationId);
               }
-
               send({ type: "done", id: savedId, title });
             } catch (error) {
-              const aborted =
-                request.signal.aborted ||
-                (error instanceof Error && (error.name === "AbortError" || error.name === "TimeoutError"));
-              console.error("[chat]", error);
-              // Whatever streamed before the failure stays part of the thread,
-              // so context is never silently lost.
+              console.error("[chat] fatal", error);
               const savedId = await persist().catch(() => null);
-              if (aborted) {
-                send({ type: "done", id: savedId, title: null });
-              } else {
-                const status = Number((error as { statusCode?: number })?.statusCode ?? 0);
-                send({
-                  type: "error",
-                  message: status
-                    ? friendlyGatewayError(status)
-                    : "The assistant is unavailable right now. Please retry.",
-                });
-                send({ type: "done", id: savedId, title: null });
-              }
+              send({ type: "error", message: "The assistant is unavailable right now. Please retry." });
+              send({ type: "done", id: savedId, title: null });
             } finally {
               clearInterval(heartbeat);
               closed = true;
