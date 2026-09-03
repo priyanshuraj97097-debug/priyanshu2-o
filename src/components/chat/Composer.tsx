@@ -19,6 +19,8 @@ type Props = {
   onSend: (input: { text: string; attachments: Attachment[] }) => void;
   onStop: () => void;
   onLive: () => void;
+  /** External text to place in the composer (e.g. a suggestion or a prompt being edited). */
+  insert?: { text: string; nonce: number } | null;
 };
 
 export function Composer({
@@ -30,6 +32,7 @@ export function Composer({
   onSend,
   onStop,
   onLive,
+  insert,
 }: Props) {
   const [text, setText] = useState("");
   const [attachments, setAttachments] = useState<Attachment[]>([]);
@@ -38,6 +41,17 @@ export function Composer({
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const fileRef = useRef<HTMLInputElement | null>(null);
   const recorder = useRecorder();
+
+  useEffect(() => {
+    if (!insert) return;
+    setText(insert.text);
+    requestAnimationFrame(() => {
+      const element = textareaRef.current;
+      if (!element) return;
+      element.focus();
+      element.setSelectionRange(element.value.length, element.value.length);
+    });
+  }, [insert]);
 
   useEffect(() => {
     const element = textareaRef.current;

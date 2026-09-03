@@ -17,10 +17,11 @@ type Props = {
   voice: string;
   speechRate: number;
   onEdit: (message: ChatMessage, text: string) => void;
+  onEditPrompt?: (message: ChatMessage) => void;
   onRetry: () => void;
 };
 
-export function MessageItem({ message, busy, voice, speechRate, onEdit, onRetry }: Props) {
+export function MessageItem({ message, busy, voice, speechRate, onEdit, onEditPrompt, onRetry }: Props) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(message.content);
   const [copied, setCopied] = useState(false);
@@ -183,6 +184,19 @@ export function MessageItem({ message, busy, voice, speechRate, onEdit, onRetry 
             <Button variant="ghost" size="sm" onClick={onRetry} disabled={busy} aria-label="Regenerate">
               <RefreshCw className="size-3.5" />
             </Button>
+            {onEditPrompt ? (
+              <Button
+                variant="ghost"
+                size="sm"
+                disabled={busy}
+                onClick={() => onEditPrompt(message)}
+                aria-label="Edit prompt"
+                title="Edit prompt"
+              >
+                <Pencil className="size-3.5" />
+                <span className="hidden text-xs sm:inline">Edit prompt</span>
+              </Button>
+            ) : null}
           </div>
         ) : null}
       </div>

@@ -1,5 +1,18 @@
 import { useNavigate } from "@tanstack/react-router";
-import { Menu, PanelLeft, Plus, Sparkle, Square, Volume2, VolumeX } from "lucide-react";
+import {
+  BarChart3,
+  Code2,
+  Image as ImageIcon,
+  Lightbulb,
+  Menu,
+  PanelLeft,
+  PenLine,
+  Plus,
+  Sigma,
+  Square,
+  Volume2,
+  VolumeX,
+} from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
@@ -20,10 +33,12 @@ import type { Attachment, ChatMessage } from "@/lib/chat/types";
 import { useConversation } from "@/lib/chat/useConversation";
 
 const SUGGESTIONS = [
-  "Explain quantum entanglement simply",
-  "Solve 3x² − 12x + 7 = 0 step by step",
-  "Refactor this Python function for speed",
-  "Generate an image of a neon mountain city",
+  { label: "Explain", icon: Lightbulb, prompt: "Explain in simple terms: " },
+  { label: "Write", icon: PenLine, prompt: "Write a clear, well-structured " },
+  { label: "Code", icon: Code2, prompt: "Write code that " },
+  { label: "Solve Math", icon: Sigma, prompt: "Solve step by step: " },
+  { label: "Analyze", icon: BarChart3, prompt: "Analyze the following and give key insights: " },
+  { label: "Create Image", icon: ImageIcon, prompt: "Create an image of " },
 ];
 
 export function ChatScreen({ conversationId }: { conversationId: string | null }) {
@@ -35,6 +50,8 @@ export function ChatScreen({ conversationId }: { conversationId: string | null }
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [liveOpen, setLiveOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [insert, setInsert] = useState<{ text: string; nonce: number } | null>(null);
+  const insertIntoComposer = useCallback((text: string) => setInsert({ text, nonce: Date.now() }), []);
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const stickRef = useRef(true);
@@ -74,6 +91,18 @@ export function ChatScreen({ conversationId }: { conversationId: string | null }
   const onEdit = (message: ChatMessage, text: string) => {
     if (!conversationId) return;
     void chatStore.resendFrom(conversationId, message.id, text, message.attachments);
+  };
+
+  /** Restores the user prompt that produced an assistant reply into the composer. */
+  const onEditPrompt = (assistantMessage: ChatMessage) => {
+    const index = state.messages.findIndex((m) => m.id === assistantMessage.id);
+    for (let i = index - 1; i >= 0; i -= 1) {
+      const candidate = state.messages[i];
+      if (candidate?.role === "user") {
+        insertIntoComposer(candidate.content);
+        return;
+      }
+    }
   };
 
   const busy = state.status === "streaming";
@@ -190,24 +219,17 @@ export function ChatScreen({ conversationId }: { conversationId: string | null }
                 <BrandMark className="size-16" />
                 <h1 className="mt-4 font-display text-3xl font-semibold sm:text-4xl">
                   Priyanshu <span className="aurora-text">2.o</span>
-                  <span className="mt-1 block text-base font-normal text-muted-foreground sm:text-lg">
-                    Multimodal AI assistant for coding, maths, research and voice
-                  </span>
                 </h1>
-                <p className="mt-2 max-w-md text-sm text-muted-foreground">
-                  One assistant for conversation, coding, mathematics, research, images, files, and
-                  voice. Just start typing — it works out what you need.
-                </p>
-                <div className="mt-6 grid w-full max-w-xl gap-2 sm:grid-cols-2">
+                <div className="mt-6 grid w-full max-w-xl grid-cols-3 gap-2">
                   {SUGGESTIONS.map((suggestion) => (
                     <button
-                      key={suggestion}
+                      key={suggestion.label}
                       type="button"
-                      onClick={() => void send({ text: suggestion, attachments: [] })}
-                      className="glass-panel rounded-xl px-4 py-3 text-left text-sm transition-colors hover:bg-surface-raised"
+                      onClick={() => insertIntoComposer(suggestion.prompt)}
+                      className="glass-panel flex flex-col items-center gap-1.5 rounded-xl px-2 py-3 text-xs font-medium transition-colors hover:bg-surface-raised sm:text-sm"
                     >
-                      <Sparkle className="mb-1.5 size-3.5 text-primary" />
-                      {suggestion}
+                      <suggestion.icon className="size-4 text-primary" />
+                      {suggestion.label}
                     </button>
                   ))}
                 </div>
@@ -222,6 +244,7 @@ export function ChatScreen({ conversationId }: { conversationId: string | null }
                     voice={normalizeVoice(preferences.voice_name, preferences.language)}
                     speechRate={preferences.speech_rate}
                     onEdit={onEdit}
+                    onEditPrompt={onEditPrompt}
                     onRetry={() => conversationId && void chatStore.retryLast(conversationId)}
                   />
                 ))}
@@ -253,6 +276,7 @@ export function ChatScreen({ conversationId }: { conversationId: string | null }
               onSend={(input) => void send(input)}
               onStop={() => conversationId && chatStore.stop(conversationId)}
               onLive={() => void startLive()}
+              insert={insert}
             />
             <p className="mt-2 text-center text-[11px] text-muted-foreground">
               Priyanshu 2.o can make mistakes. Verify important information.
