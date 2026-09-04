@@ -150,6 +150,21 @@ export const Route = createFileRoute("/api/chat")({
         const limited = await checkUserRateLimit(ctx.userId, settings);
         if (limited) return json({ error: limited }, 429);
 
+        // ---- routing decision (before any writes, so a capacity error leaves no orphan turn) ----
+        const task = classifyTask({
+          text,
+          attachmentMimes: attachments.map((a) => a.mime),
+          wantsReasoning: false,
+        });
+        const detectedLanguage = detectLanguage(text);
+        const needsTools = task === "math" || IMAGE_REQUEST_RE.test(text);
+        const needsAttachments = attachments.length > 0;
+
+        const plan = await planRoute({ task, needsTools, needsAttachments });
+        if (!plan.candidates.length) {
+          return json({ error: plan.unavailableReason ?? "AI is temporarily unavailable." }, 503);
+        }
+
         const [conversationRes, prefsRes, profileRes, historyRes, insertedRes] = await Promise.all([
           ctx.supabase.from("conversations").select("id, title").eq("id", conversationId).maybeSingle(),
           ctx.supabase
@@ -206,23 +221,9 @@ export const Route = createFileRoute("/api/chat")({
           ] as StoredRow[])),
         );
 
-        // ---- routing decision ----
         const historyHasAttachments = history.some(
           (row) => Array.isArray(row.attachments) && (row.attachments as unknown[]).length > 0,
         );
-        const task = classifyTask({
-          text,
-          attachmentMimes: attachments.map((a) => a.mime),
-          wantsReasoning: prefs?.model_preference === "quality",
-        });
-        const detectedLanguage = detectLanguage(text);
-        const needsTools = task === "math" || IMAGE_REQUEST_RE.test(text);
-        const needsAttachments = attachments.length > 0;
-
-        const plan = await planRoute({ task, needsTools, needsAttachments });
-        if (!plan.candidates.length) {
-          return json({ error: plan.unavailableReason ?? "AI is temporarily unavailable." }, 503);
-        }
 
         const titlePromise = isFirstTurn
           ? generateTitle(text || attachments[0]?.name || "New chat")
