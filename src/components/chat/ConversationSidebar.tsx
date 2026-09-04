@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
-import { Check, Loader2, MoreHorizontal, Pencil, Plus, Search, Settings, Trash2, X } from "lucide-react";
+import { BarChart3, Check, Loader2, MoreHorizontal, Pencil, Plus, Search, Settings, Trash2, X } from "lucide-react";
 import { useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
@@ -87,6 +87,16 @@ export function ConversationSidebar({
   const { data: conversations, isLoading } = useConversations();
   const createConversation = useCreateConversation();
   const busyKey = useBusyConversationKey();
+  const { data: roleRows } = useQuery({
+    queryKey: ["my-roles", user?.id],
+    enabled: Boolean(user),
+    staleTime: 5 * 60_000,
+    queryFn: async () => {
+      const { data } = await supabase.from("user_roles").select("role").eq("user_id", user!.id);
+      return data ?? [];
+    },
+  });
+  const isAdmin = Boolean(roleRows?.some((row) => row.role === "admin"));
   const [query, setQuery] = useState("");
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
@@ -284,6 +294,13 @@ export function ConversationSidebar({
         )}
       </nav>
 
+      {isAdmin ? (
+        <Button asChild variant="ghost" className="justify-start gap-2">
+          <Link to="/admin">
+            <BarChart3 className="size-4" /> AI usage dashboard
+          </Link>
+        </Button>
+      ) : null}
       <Button variant="ghost" className="justify-start gap-2" onClick={onOpenSettings}>
         <Settings className="size-4" /> Settings
       </Button>

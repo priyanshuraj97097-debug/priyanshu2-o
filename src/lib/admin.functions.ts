@@ -66,7 +66,7 @@ export type DashboardData = {
     monthlyRequestCap: number | null;
     coolingDown: { untilIso: string; failures: number; reason: string } | null;
   }[];
-  settings: Record<string, unknown>;
+  settings: Record<string, number | boolean>;
 };
 
 export const getAdminDashboard = createServerFn({ method: "GET" })
@@ -225,7 +225,7 @@ export const getAdminDashboard = createServerFn({ method: "GET" })
           coolingDown: breakers[adapter.id] ?? null,
         }))
         .sort((a, b) => a.priority - b.priority),
-      settings: settings as unknown as Record<string, unknown>,
+      settings: settings as unknown as Record<string, number | boolean>,
     };
   });
 
