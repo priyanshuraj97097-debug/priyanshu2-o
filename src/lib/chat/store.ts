@@ -166,11 +166,22 @@ class ChatStore {
         });
 
         if (!response.ok || !response.body) {
-          if (response.status >= 500 || response.status === 429) return "retry";
+          // 429 (per-user limit) and 503 (capacity) carry a clear message from
+          // the router and are not worth hammering; other 5xx get retried.
+          let serverMessage: string | null = null;
+          if (response.status === 429 || response.status === 503 || response.status === 400) {
+            try {
+              serverMessage = ((await response.json()) as { error?: string }).error ?? null;
+            } catch {
+              serverMessage = null;
+            }
+          }
+          if (!serverMessage && response.status >= 500) return "retry";
           const message =
-            response.status === 401
+            serverMessage ??
+            (response.status === 401
               ? "Your session expired. Please sign in again."
-              : "The assistant could not be reached. Tap retry to try again.";
+              : "The assistant could not be reached. Tap retry to try again.");
           this.updateMessage(conversationId, assistantMessage.id, { error: message, streaming: false });
           this.set(conversationId, { status: "idle" });
           return "done";
