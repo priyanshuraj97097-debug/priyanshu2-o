@@ -267,9 +267,11 @@ class OpenAICompatibleAdapter implements ProviderAdapter {
   }
 
   modelFor(task: TaskType): string {
-    const configured = this.row?.models?.[task] ?? this.row?.models?.["general"];
     return (
-      configured ?? this.definition.defaultModels[task] ?? this.definition.defaultModels.general
+      this.row?.models?.[task] ??
+      this.definition.defaultModels[task] ??
+      this.row?.models?.["general"] ??
+      this.definition.defaultModels.general
     );
   }
 
