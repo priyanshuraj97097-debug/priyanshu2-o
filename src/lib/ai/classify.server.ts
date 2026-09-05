@@ -4,7 +4,7 @@ export type Language = "en" | "hi" | "hinglish" | "other";
 
 const DEVANAGARI = /[\u0900-\u097F]/;
 const HINGLISH_WORDS =
-  /\b(kya|hai|hain|nahi|nahin|kaise|kaisa|kaisi|kyun|kyu|kab|kahan|kaun|kitna|kitne|mujhe|mujhko|mera|meri|mere|hum|humko|tum|tumhe|aap|aapko|apna|karo|kar|karna|kiya|bata|batao|bataiye|dikhao|sunao|do|dena|chahiye|matlab|acha|accha|theek|thik|haan|bhai|yaar|ji|samjha|samjhao|likho|likhna|banao|banana|ek|aur|ke|ki|ka|ko|se|mein|par|toh|bhi|sab|kuch|kuchh|wala|wali|hoga|hogi|tha|thi|the|raha|rahi|rahe|chhota|chhoti|bada|badi|kahani|shayari|gaana|khana|paani|aaj|kal|abhi|jaldi|dhanyavad|shukriya|namaste|namaskar)\b/i;
+  /\b(kya|hai|hain|nahi|nahin|kaise|kaisa|kaisi|kyun|kyu|kab|kahan|kaun|kitna|kitne|mujhe|mujhko|mera|meri|mere|hum|humko|tum|tumhe|aap|aapko|apna|karo|kar|karna|kiya|bata|batao|bataiye|dikhao|sunao|dena|chahiye|matlab|acha|accha|theek|thik|haan|bhai|yaar|ji|samjha|samjhao|likho|likhna|banao|banana|ek|aur|ke|ki|mein|toh|bhi|sab|kuch|kuchh|wala|wali|hoga|hogi|raha|rahi|rahe|chhota|chhoti|bada|badi|kahani|shayari|gaana|khana|paani|aaj|kal|abhi|jaldi|dhanyavad|shukriya|namaste|namaskar)\b/i;
 
 /** Lightweight script/keyword detection — no model call, so it costs nothing. */
 export function detectLanguage(text: string): Language {
