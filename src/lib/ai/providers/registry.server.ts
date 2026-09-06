@@ -290,6 +290,7 @@ class OpenAICompatibleAdapter implements ProviderAdapter {
             Authorization: `Bearer ${this.key}`,
             ...(this.definition.headers?.(this.key!) ?? {}),
           },
+      fetch: sanitizingFetch,
     });
     return provider(this.modelFor(task));
   }
