@@ -212,6 +212,34 @@ export const PROVIDER_DEFINITIONS: ProviderDefinition[] = [
   },
 ];
 
+/**
+ * Some OpenAI-compatible providers (e.g. Groq) return `reasoning_content` on
+ * assistant messages, and the SDK echoes it back verbatim on the next
+ * multi-step (tool) request — which those same providers then reject with a
+ * 400, cutting the response short mid-stream. Strip it from outgoing
+ * assistant messages before the request leaves the server.
+ */
+const sanitizingFetch: typeof fetch = async (input, init) => {
+  if (init?.method?.toUpperCase() === "POST" && typeof init.body === "string") {
+    try {
+      const payload = JSON.parse(init.body) as { messages?: Array<Record<string, unknown>> };
+      if (Array.isArray(payload.messages)) {
+        let changed = false;
+        for (const message of payload.messages) {
+          if (message && message.role === "assistant" && "reasoning_content" in message) {
+            delete message.reasoning_content;
+            changed = true;
+          }
+        }
+        if (changed) init = { ...init, body: JSON.stringify(payload) };
+      }
+    } catch {
+      /* not JSON — send untouched */
+    }
+  }
+  return fetch(input, init);
+};
+
 class OpenAICompatibleAdapter implements ProviderAdapter {
   private readonly definition: ProviderDefinition;
   private readonly key: string | undefined;
