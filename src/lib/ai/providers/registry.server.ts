@@ -226,8 +226,8 @@ const sanitizingFetch: typeof fetch = async (input, init) => {
       if (Array.isArray(payload.messages)) {
         let changed = false;
         for (const message of payload.messages) {
-          if (message && message.role === "assistant" && "reasoning_content" in message) {
-            delete message.reasoning_content;
+          if (message && message["role"] === "assistant" && "reasoning_content" in message) {
+            delete message["reasoning_content"];
             changed = true;
           }
         }
