@@ -13,4 +13,4 @@ Allow: /
 User-agent: *
 Allow: /
 
-Sitemap: https://priyanshu-nexus-ai.lovable.app/sitemap.xml
+Sitemap: https://priyanshu2-o.lovable.app/sitemap.xml
