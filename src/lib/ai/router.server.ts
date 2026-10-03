@@ -281,16 +281,19 @@ export async function planRoute(request: RouteRequest): Promise<RoutePlan> {
  */
 function applyTaskPreference(adapters: ProviderAdapter[], task: TaskType): ProviderAdapter[] {
   const boost: Record<string, number> = {};
-  if (task === "coding") {
+  if (task === "general" || task === "coding" || task === "translation") {
     boost["groq"] = -100;
-    boost["mistral"] = -80;
+    boost["cerebras"] = -90;
+    boost["mistral"] = -50;
   }
-  if (task === "translation") boost["groq"] = -100;
+  if (task === "coding") boost["mistral"] = -80;
   if (task === "reasoning" || task === "math") {
+    boost["lovable"] = -100;
     boost["gemini"] = -100;
     boost["mistral"] = -20;
   }
   if (task === "multimodal" || task === "vision" || task === "document" || task === "video") {
+    boost["lovable"] = -100;
     boost["gemini"] = -100;
   }
   return adapters
