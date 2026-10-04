@@ -1,0 +1,13 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1791078552078,
+      "tag": "0000_disable_old_chat_providers",
+      "breakpoints": true
+    }
+  ]
+}
