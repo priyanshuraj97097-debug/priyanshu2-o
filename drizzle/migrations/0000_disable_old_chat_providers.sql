@@ -1,0 +1,1 @@
+UPDATE public.ai_provider_config SET enabled = false WHERE provider IN ('lovable','cerebras');
