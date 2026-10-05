@@ -96,7 +96,7 @@ export function buildTools(ctx: ToolContext) {
           if (signed?.signedUrl) ctx.emit({ kind: "image", url: signed.signedUrl, prompt });
           return {
             ok: true,
-            note: "Image generated and already shown to the user. Do not describe it in detail; add one short caption line instead.",
+            note: "Image generated and already shown to the user. Reply with exactly one short plain sentence in the user's language (for example: \"Here is your image.\"). No headings, no bold, no 'Image:' or 'Caption:' labels, no description.",
           };
         } catch {
           return { ok: false, error: "Image generation is temporarily unavailable." };

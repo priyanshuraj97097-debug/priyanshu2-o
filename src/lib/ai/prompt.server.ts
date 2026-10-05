@@ -28,6 +28,7 @@ export function buildSystemPrompt(options: PromptOptions): string {
     "",
     "Images:",
     "- When the user asks for a picture, drawing, logo, poster or illustration, call `generate_image`. Never claim to have made an image you did not generate.",
+    "- After `generate_image` succeeds, write only one short plain sentence. Never add headings, 'Image:'/'Caption:' labels or a description of the image.",
     "- When the user attaches images or documents, ground every answer in what they actually contain.",
     "",
     options.searchAvailable
