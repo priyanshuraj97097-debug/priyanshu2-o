@@ -226,10 +226,25 @@ const sanitizingFetch: typeof fetch = async (input, init) => {
       const payload = JSON.parse(init.body) as { messages?: Array<Record<string, unknown>> };
       if (Array.isArray(payload.messages)) {
         let changed = false;
+        // Gemini 3 rejects replayed tool calls without a thought signature (400).
+        // The SDK drops it, so attach Google's documented validator-skip value.
+        const isGemini = String(input instanceof Request ? input.url : input).includes(
+          "generativelanguage.googleapis.com",
+        );
         for (const message of payload.messages) {
           if (message && message["role"] === "assistant" && "reasoning_content" in message) {
             delete message["reasoning_content"];
             changed = true;
+          }
+          if (isGemini && message && message["role"] === "assistant" && Array.isArray(message["tool_calls"])) {
+            for (const call of message["tool_calls"] as Array<Record<string, unknown>>) {
+              if (!call["extra_content"]) {
+                call["extra_content"] = {
+                  google: { thought_signature: "skip_thought_signature_validator" },
+                };
+                changed = true;
+              }
+            }
           }
         }
         if (changed) init = { ...init, body: JSON.stringify(payload) };
