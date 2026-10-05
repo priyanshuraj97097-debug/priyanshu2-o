@@ -83,8 +83,9 @@ export const PROVIDER_DEFINITIONS: ProviderDefinition[] = [
     defaultModels: {
       general: "gemini-3.7-flash",
       coding: "gemini-3.7-flash",
-      math: "gemini-3.1-pro-preview",
-      reasoning: "gemini-3.1-pro-preview",
+      // Pro has no free-tier quota on the configured key; flash avoids guaranteed 429s.
+      math: "gemini-3.7-flash",
+      reasoning: "gemini-3.7-flash",
       multimodal: "gemini-3.7-flash",
       vision: "gemini-3.7-flash",
       document: "gemini-3.7-flash",
