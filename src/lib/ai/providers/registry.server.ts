@@ -1,6 +1,5 @@
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 
-import { GATEWAY_BASE_URL } from "../config.server";
 import type { ProviderAdapter, ProviderConfigRow, ProviderPricing, TaskType } from "./types";
 
 /**
@@ -29,39 +28,6 @@ type ProviderDefinition = {
 };
 
 export const PROVIDER_DEFINITIONS: ProviderDefinition[] = [
-  {
-    id: "lovable",
-    label: "Priyanshu Cloud AI",
-    envKey: "LOVABLE_API_KEY",
-    baseURL: GATEWAY_BASE_URL,
-    authHeader: (key) => ({ "Lovable-API-Key": key, "X-Lovable-AIG-SDK": "vercel-ai-sdk" }),
-    supportsTools: true,
-    supportsAttachments: true,
-    defaultTasks: [
-      "general",
-      "coding",
-      "math",
-      "reasoning",
-      "multimodal",
-      "vision",
-      "document",
-      "video",
-      "translation",
-    ],
-    defaultModels: {
-      general: "google/gemini-3.7-flash",
-      coding: "google/gemini-3.7-flash",
-      math: "google/gemini-3.1-pro-preview",
-      reasoning: "google/gemini-3.1-pro-preview",
-      multimodal: "google/gemini-3.7-flash",
-      vision: "google/gemini-3.7-flash",
-      document: "google/gemini-3.7-flash",
-      video: "google/gemini-3.7-flash",
-      translation: "google/gemini-3.7-flash",
-    },
-    defaultPriority: 5,
-    pricing: { input: 0.3, output: 2.5 },
-  },
   {
     id: "gemini",
     label: "Gemini",
@@ -130,18 +96,6 @@ export const PROVIDER_DEFINITIONS: ProviderDefinition[] = [
     },
     defaultPriority: 30,
     pricing: { input: 0.2, output: 0.6 },
-  },
-  {
-    id: "cerebras",
-    label: "Cerebras",
-    envKey: "CEREBRAS_API_KEY",
-    baseURL: "https://api.cerebras.ai/v1",
-    supportsTools: true,
-    supportsAttachments: false,
-    defaultTasks: ["general", "coding", "math"],
-    defaultModels: { general: "gpt-oss-120b", coding: "qwen-3.8-27b", math: "gpt-oss-120b" },
-    defaultPriority: 40,
-    pricing: { input: 0.6, output: 0.6 },
   },
   {
     id: "openrouter",
