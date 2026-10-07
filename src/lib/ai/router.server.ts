@@ -283,17 +283,14 @@ function applyTaskPreference(adapters: ProviderAdapter[], task: TaskType): Provi
   const boost: Record<string, number> = {};
   if (task === "general" || task === "coding" || task === "translation") {
     boost["groq"] = -100;
-    boost["cerebras"] = -90;
     boost["mistral"] = -50;
   }
   if (task === "coding") boost["mistral"] = -80;
   if (task === "reasoning" || task === "math") {
-    boost["lovable"] = -100;
     boost["gemini"] = -100;
     boost["mistral"] = -20;
   }
   if (task === "multimodal" || task === "vision" || task === "document" || task === "video") {
-    boost["lovable"] = -100;
     boost["gemini"] = -100;
   }
   return adapters
