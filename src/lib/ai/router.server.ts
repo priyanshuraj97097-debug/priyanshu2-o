@@ -281,7 +281,12 @@ export async function planRoute(request: RouteRequest): Promise<RoutePlan> {
  */
 function applyTaskPreference(adapters: ProviderAdapter[], task: TaskType): ProviderAdapter[] {
   const boost: Record<string, number> = {};
-  if (task === "general" || task === "coding" || task === "translation") {
+  if (task === "general") {
+    boost["gemini"] = -100;
+    boost["groq"] = -50;
+    boost["mistral"] = -30;
+  }
+  if (task === "coding" || task === "translation") {
     boost["groq"] = -100;
     boost["mistral"] = -50;
   }
