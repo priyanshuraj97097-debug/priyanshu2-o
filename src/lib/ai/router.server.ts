@@ -276,8 +276,8 @@ export async function planRoute(request: RouteRequest): Promise<RoutePlan> {
 
 /**
  * Task-specific preferences on top of the global priority table. Gemini-class
- * providers lead multimodal/reasoning work; Groq/Cerebras lead low-latency
- * plain-text and coding work.
+ * providers lead multimodal/reasoning work; Groq leads low-latency plain-text
+ * and coding work.
  */
 function applyTaskPreference(adapters: ProviderAdapter[], task: TaskType): ProviderAdapter[] {
   const boost: Record<string, number> = {};
