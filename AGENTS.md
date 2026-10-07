@@ -8,3 +8,5 @@
 > Commits you push to the connected branch sync back to Lovable and show up in
 > the editor, so keep the branch in a working state.
 <!-- LOVABLE:END -->
+
+- Chat provider credentials are read only from server runtime environment variables by the server-only provider registry; the chat provider list stays separate from built-in image and voice services.
